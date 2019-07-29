@@ -66,7 +66,21 @@ const (
 
 	// TargetLogDriver is to show secret target being "LOG_DRIVER", the default will be "CONTAINER"
 	SecretTargetLogDriver = "LOG_DRIVER"
+
+	// Default initial Auto-restart backoff delay
+	DefaultInitialRestartDelay = 10 * time.Second
 )
+
+const (
+	// not restarting at all
+	No RestartPolicy = iota
+	// restarts a container if exit code is non-zero
+	OnFailure
+	// always restart container regardless of exit code and max retries
+	Always
+)
+
+type RestartPolicy int32
 
 // DockerConfig represents additional metadata about a container to run. It's
 // remodeled from the `ecsacs` api model file. Eventually it should not exist
@@ -125,6 +139,14 @@ type Container struct {
 	Secrets []Secret `json:"secrets"`
 	// Essential denotes whether the container is essential or not
 	Essential bool
+	// RestartPolicy define in what condition will container be restarted
+	RestartPolicy RestartPolicy
+	// max restart retries if restarts 'On-Failure'
+	RestartMaxRetries uint32
+	// current retries used
+	RestartCurrentRetries uint32
+	// auto restart exponential backoff delay
+	BackoffDelay time.Duration
 	// EntryPoint is entrypoint of the container, corresponding to docker option: --entrypoint
 	EntryPoint *[]string
 	// Environment is the environment variable set in the container

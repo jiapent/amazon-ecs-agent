@@ -39,7 +39,6 @@ import (
 
 	"github.com/cihub/seelog"
 	"github.com/pkg/errors"
-	"fmt"
 )
 
 const (
@@ -357,7 +356,6 @@ func (mtask *managedTask) waitEvent(stopWaiting <-chan struct{}) bool {
 		seelog.Infof("Managed task [%s]: got container [%s] event: [%s]",
 			mtask.Arn, dockerChange.container.Name, dockerChange.event.Status.String())
 		mtask.handleContainerChange(dockerChange)
-		fmt.Println(dockerChange)
 		return false
 	case resChange := <-mtask.resourceStateChangeEvent:
 		res := resChange.resource
