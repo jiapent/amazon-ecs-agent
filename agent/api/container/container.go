@@ -146,7 +146,7 @@ type Container struct {
 	// current retries used
 	RestartCurrentRetries uint32
 	// auto restart exponential backoff delay
-	BackoffDelay time.Duration
+	RestartBackoffDelay time.Duration
 	// EntryPoint is entrypoint of the container, corresponding to docker option: --entrypoint
 	EntryPoint *[]string
 	// Environment is the environment variable set in the container
@@ -913,4 +913,16 @@ func (c *Container) GetStopTimeout() time.Duration {
 	defer c.lock.Unlock()
 
 	return time.Duration(c.StopTimeout) * time.Second
+}
+
+func (c *Container) SetRestartBackoffDelay(delay time.Duration) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	c.RestartBackoffDelay = delay
+}
+
+func (c *Container) GetRestartBackoffDelay() time.Duration {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	return c.RestartBackoffDelay
 }
