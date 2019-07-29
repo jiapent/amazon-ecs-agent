@@ -54,6 +54,15 @@ const (
 	taskUnableToTransitionToStoppedReason = "TaskStateError: Agent could not progress task's state to stopped"
 )
 
+const (
+	// source for dockerContainerChange
+	fromDockerEvent ContainerChangeSource = iota
+	fromInspect
+	fromDockerApi // from 'Docker start container' or 'Docker stop container'
+)
+
+type ContainerChangeSource int32
+
 var (
 	_stoppedSentWaitInterval       = stoppedSentWaitInterval
 	_maxStoppedWaitTimes           = int(maxStoppedWaitTimes)
@@ -67,7 +76,7 @@ type acsTaskUpdate struct {
 type dockerContainerChange struct {
 	container *apicontainer.Container
 	event     dockerapi.DockerContainerChangeEvent
-	source    string
+	source    ContainerChangeSource
 }
 
 // resourceStateChange represents the required status change after resource transition
@@ -868,6 +877,7 @@ func (mtask *managedTask) startContainerTransitions(transitionFunc containerTran
 					event: dockerapi.DockerContainerChangeEvent{
 						Status: status,
 					},
+					source: fromDockerApi,
 				}
 			}(cont, transition.nextState)
 			continue

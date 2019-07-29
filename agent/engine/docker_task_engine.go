@@ -449,7 +449,7 @@ func (engine *DockerTaskEngine) checkTaskState(task *apitask.Task) {
 					Status:                  status,
 					DockerContainerMetadata: metadata,
 				},
-				source: "DockerInspect",
+				source: fromInspect,
 			})
 		}
 	}
@@ -620,7 +620,7 @@ func (engine *DockerTaskEngine) handleDockerEvent(event dockerapi.DockerContaine
 	}
 	seelog.Debugf("Task engine [%s]: writing docker event to the task: %s",
 		task.Arn, event.String())
-	managedTask.emitDockerContainerChange(dockerContainerChange{container: cont.Container, event: event, source: "DockerEvent"})
+	managedTask.emitDockerContainerChange(dockerContainerChange{container: cont.Container, event: event, source: fromDockerEvent})
 	seelog.Debugf("Task engine [%s]: wrote docker event to the task: %s",
 		task.Arn, event.String())
 }
@@ -1184,7 +1184,7 @@ func (engine *DockerTaskEngine) transitionContainer(task *apitask.Task, containe
 				Status:                  to,
 				DockerContainerMetadata: metadata,
 			},
-			source: "DockerAPI",
+			source: fromDockerApi,
 		})
 	}
 }
