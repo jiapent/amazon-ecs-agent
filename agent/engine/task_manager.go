@@ -39,6 +39,7 @@ import (
 
 	"github.com/cihub/seelog"
 	"github.com/pkg/errors"
+	"fmt"
 )
 
 const (
@@ -66,6 +67,7 @@ type acsTaskUpdate struct {
 type dockerContainerChange struct {
 	container *apicontainer.Container
 	event     dockerapi.DockerContainerChangeEvent
+	source    string
 }
 
 // resourceStateChange represents the required status change after resource transition
@@ -346,6 +348,7 @@ func (mtask *managedTask) waitEvent(stopWaiting <-chan struct{}) bool {
 		seelog.Infof("Managed task [%s]: got container [%s] event: [%s]",
 			mtask.Arn, dockerChange.container.Name, dockerChange.event.Status.String())
 		mtask.handleContainerChange(dockerChange)
+		fmt.Println(dockerChange)
 		return false
 	case resChange := <-mtask.resourceStateChangeEvent:
 		res := resChange.resource
