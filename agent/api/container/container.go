@@ -465,8 +465,9 @@ func (c *Container) IsKnownSteadyState() bool {
 
 // GetNextKnownStateProgression returns the state that the container should
 // progress to based on its `KnownState`. The progression is
-// incremental until the container reaches its steady state. From then on,
-// it transitions to `ContainerStopped`.
+// incremental until the container reaches its steady state. (The next state of
+// `ContainerCreated` and `ContainerRestarting` will both be 'ContainerRunning`.)
+// From then on, it transitions to `ContainerStopped`.
 //
 // For example:
 // a. if the steady state of the container is defined as `ContainerRunning`,
@@ -483,6 +484,10 @@ func (c *Container) IsKnownSteadyState() bool {
 func (c *Container) GetNextKnownStateProgression() apicontainerstatus.ContainerStatus {
 	if c.IsKnownSteadyState() {
 		return apicontainerstatus.ContainerStopped
+	}
+
+	if c.GetKnownStatus() == apicontainerstatus.ContainerCreated {
+		return apicontainerstatus.ContainerRunning
 	}
 
 	return c.GetKnownStatus() + 1

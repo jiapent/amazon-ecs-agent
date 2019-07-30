@@ -437,6 +437,7 @@ func (engine *DockerTaskEngine) checkTaskState(task *apitask.Task) {
 		if !ok {
 			continue
 		}
+		restartAttempts := container.GetRestartAttempts()
 		status, metadata := engine.client.DescribeContainer(engine.ctx, dockerContainer.DockerID)
 		engine.tasksLock.RLock()
 		managedTask, ok := engine.managedTasks[task.Arn]
@@ -450,6 +451,7 @@ func (engine *DockerTaskEngine) checkTaskState(task *apitask.Task) {
 					DockerContainerMetadata: metadata,
 				},
 				source: fromInspect,
+				containerPrevRestartAttempts: restartAttempts,
 			})
 		}
 	}
@@ -1172,6 +1174,10 @@ func (engine *DockerTaskEngine) updateTaskUnsafe(task *apitask.Task, update *api
 func (engine *DockerTaskEngine) transitionContainer(task *apitask.Task, container *apicontainer.Container, to apicontainerstatus.ContainerStatus) {
 	// Let docker events operate async so that we can continue to handle ACS / other requests
 	// This is safe because 'applyContainerState' will not mutate the task
+
+	// Get restartAttempts when making the api call, and include this in ContainerChange event, this is useful for
+	// restarting non-essential containers to check if it's a new status change.
+	restartAttempts := container.GetRestartAttempts()
 	metadata := engine.applyContainerState(task, container, to)
 
 	engine.tasksLock.RLock()
@@ -1185,6 +1191,7 @@ func (engine *DockerTaskEngine) transitionContainer(task *apitask.Task, containe
 				DockerContainerMetadata: metadata,
 			},
 			source: fromDockerApi,
+			containerPrevRestartAttempts: restartAttempts,
 		})
 	}
 }

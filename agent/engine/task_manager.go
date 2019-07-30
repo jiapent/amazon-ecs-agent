@@ -55,7 +55,10 @@ const (
 
 const (
 	// source for dockerContainerChange
-	fromDockerEvent ContainerChangeSource = iota
+
+	// container transitions without any Docker actions, e.g. a `Created` container's desired status is set as `Stopped`
+	none ContainerChangeSource = iota
+	fromDockerEvent
 	fromInspect
 	fromDockerApi // from 'Docker start container' or 'Docker stop container'
 )
@@ -76,6 +79,8 @@ type dockerContainerChange struct {
 	container *apicontainer.Container
 	event     dockerapi.DockerContainerChangeEvent
 	source    ContainerChangeSource
+	// restartAttempts count when making Docker Api calls, 0 for Docker events
+	containerPrevRestartAttempts apicontainer.RestartCount
 }
 
 // resourceStateChange represents the required status change after resource transition
@@ -875,7 +880,8 @@ func (mtask *managedTask) startContainerTransitions(transitionFunc containerTran
 					event: dockerapi.DockerContainerChangeEvent{
 						Status: status,
 					},
-					source: fromDockerApi,
+					source: none,
+					containerPrevRestartAttempts: cont.RestartAttempts,
 				}
 			}(cont, transition.nextState)
 			continue
