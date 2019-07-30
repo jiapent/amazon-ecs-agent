@@ -73,7 +73,7 @@ const (
 
 const (
 	// not restarting at all
-	No RestartPolicy = iota
+	NEVER RestartPolicy = iota
 	// restarts a container if exit code is non-zero
 	OnFailure
 	// always restart container regardless of exit code and max retries
@@ -81,6 +81,8 @@ const (
 )
 
 type RestartPolicy int32
+
+type RestartCount uint32
 
 // DockerConfig represents additional metadata about a container to run. It's
 // remodeled from the `ecsacs` api model file. Eventually it should not exist
@@ -142,9 +144,9 @@ type Container struct {
 	// RestartPolicy define in what condition will container be restarted
 	RestartPolicy RestartPolicy
 	// max restart retries if restarts 'On-Failure'
-	RestartMaxRetries uint32
+	RestartMaxAttempts RestartCount
 	// current retries used
-	RestartCurrentRetries uint32
+	RestartAttempts RestartCount
 	// auto restart exponential backoff delay
 	RestartBackoffDelay time.Duration
 	// EntryPoint is entrypoint of the container, corresponding to docker option: --entrypoint
@@ -926,3 +928,17 @@ func (c *Container) GetRestartBackoffDelay() time.Duration {
 	defer c.lock.Unlock()
 	return c.RestartBackoffDelay
 }
+
+func (c *Container) SetRestartAttempts(count RestartCount) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	c.RestartAttempts = count
+}
+
+func (c *Container) GetRestartAttempts() RestartCount {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	return c.RestartAttempts
+}
+
+
