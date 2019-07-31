@@ -457,6 +457,39 @@ func (engine *DockerTaskEngine) checkTaskState(task *apitask.Task) {
 	}
 }
 
+// checkTaskState inspects the state of input container and writes
+// its state to the managed task's container channel.
+func (engine *DockerTaskEngine) checkContainerState(container *apicontainer.Container, task *apitask.Task) {
+
+	taskContainers, ok := engine.state.ContainerMapByArn(task.Arn)
+	if !ok {
+		seelog.Warnf("Task engine [%s]: could not check container %s state; no task in state", task.Arn, container.Name)
+		return
+	}
+
+	dockerContainer, ok := taskContainers[container.Name]
+	if !ok {
+		return
+	}
+	restartAttempts := container.GetRestartAttempts()
+	status, metadata := engine.client.DescribeContainer(engine.ctx, dockerContainer.DockerID)
+	engine.tasksLock.RLock()
+	managedTask, ok := engine.managedTasks[task.Arn]
+	engine.tasksLock.RUnlock()
+
+	if ok {
+		managedTask.emitDockerContainerChange(dockerContainerChange{
+			container: container,
+			event: dockerapi.DockerContainerChangeEvent{
+				Status:                  status,
+				DockerContainerMetadata: metadata,
+			},
+			source: fromInspect,
+			containerPrevRestartAttempts: restartAttempts,
+		})
+	}
+}
+
 // sweepTask deletes all the containers associated with a task
 func (engine *DockerTaskEngine) sweepTask(task *apitask.Task) {
 	for _, cont := range task.Containers {

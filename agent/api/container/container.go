@@ -946,4 +946,25 @@ func (c *Container) GetRestartAttempts() RestartCount {
 	return c.RestartAttempts
 }
 
+func (c *Container) IncrementRestartAttempts() {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	c.RestartAttempts += 1
+}
+
+func (c *Container) CanMakeRestartAttempt() bool {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	return c.RestartAttempts < c.RestartMaxAttempts
+}
+
+func (c *Container) CanRestart() bool {
+	return c.GetDesiredStatus() != apicontainerstatus.ContainerStopped &&
+		c.CanMakeRestartAttempt()
+}
+
+func (c *Container) IsAutoRestartNonEssentialContainer() bool {
+	return !c.IsEssential() && c.RestartPolicy != NEVER
+}
+
 
