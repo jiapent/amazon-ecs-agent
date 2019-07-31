@@ -490,7 +490,6 @@ func (engine *DockerTaskEngine) checkContainerState(container *apicontainer.Cont
 	}
 }
 
-
 // sweepTask deletes all the containers associated with a task
 func (engine *DockerTaskEngine) sweepTask(task *apitask.Task) {
 	for _, cont := range task.Containers {
