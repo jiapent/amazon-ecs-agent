@@ -911,6 +911,12 @@ func (task *Task) updateTaskKnownStatus() (newStatus apitaskstatus.TaskStatus) {
 		if containerKnownStatus == apicontainerstatus.ContainerStopped && container.Essential {
 			essentialContainerStopped = true
 		}
+
+		// Skip restarted container
+		if container.IsAutoRestartNonEssentialContainer() && container.RestartAttempts > 0 {
+			continue
+		}
+
 		if containerKnownStatus < containerEarliestKnownStatus {
 			containerEarliestKnownStatus = containerKnownStatus
 			earliestKnownStatusContainer = container

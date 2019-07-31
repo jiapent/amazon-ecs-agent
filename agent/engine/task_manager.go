@@ -770,17 +770,34 @@ func (mtask *managedTask) handleEventError(containerChange dockerContainerChange
 		// No need to explicitly stop containers if this is a * -> NONE/CREATED transition
 		seelog.Warnf("Managed task [%s]: error creating container [%s]; marking its desired status as STOPPED: %v",
 			mtask.Arn, container.Name, event.Error)
+
 		container.SetKnownStatus(currentKnownStatus)
 		container.SetDesiredStatus(apicontainerstatus.ContainerStopped)
+
 		return false
 	default:
+		// If this is a start/restart api call timeout for restarting non-essential container,
+		// we'll restart the container
+		errorName := event.Error.ErrorName()
+		if container.IsAutoRestartNonEssentialContainer() {
+			if containerChange.source == fromDockerApi &&
+				errorName == dockerapi.DockerTimeoutErrorName && container.CanRestart() {
+				container.IncrementRestartAttempts()
+				container.SetKnownStatus(apicontainerstatus.ContainerRestarting)
+				go mtask.engine.transitionContainer(mtask.Task, container, apicontainerstatus.ContainerRunning)
+				return true
+			}
+			return false
+		}
+
 		// If this is a * -> RUNNING / RESOURCES_PROVISIONED transition, we need to stop
 		// the container.
 		seelog.Warnf("Managed task [%s]: error starting/provisioning container[%s]; marking its desired status as STOPPED: %v",
 			mtask.Arn, container.Name, event.Error)
 		container.SetKnownStatus(currentKnownStatus)
 		container.SetDesiredStatus(apicontainerstatus.ContainerStopped)
-		errorName := event.Error.ErrorName()
+
+
 		if errorName == dockerapi.DockerTimeoutErrorName || errorName == dockerapi.CannotInspectContainerErrorName {
 			// If there's an error with inspecting the container or in case of timeout error,
 			// we'll also assume that the container has transitioned to RUNNING and issue
@@ -788,11 +805,79 @@ func (mtask *managedTask) handleEventError(containerChange dockerContainerChange
 			seelog.Warnf("Managed task [%s]: forcing container [%s] to stop",
 				mtask.Arn, container.Name)
 			go mtask.engine.transitionContainer(mtask.Task, container, apicontainerstatus.ContainerStopped)
+
 		}
 		// Container known status not changed, no need for further processing
 		return false
 	}
 }
+
+//// handleEventError handles a container change event error and decides whether
+//// we should proceed to transition the container
+//func (mtask *managedTask) handleEventError(containerChange dockerContainerChange, currentKnownStatus apicontainerstatus.ContainerStatus) bool {
+//	container := containerChange.container
+//	event := containerChange.event
+//	if container.ApplyingError == nil {
+//		container.ApplyingError = apierrors.NewNamedError(event.Error)
+//	}
+//	switch event.Status {
+//	// event.Status is the desired container transition from container's known status
+//	// (* -> event.Status)
+//	case apicontainerstatus.ContainerPulled:
+//		// If the agent pull behavior is always or once, we receive the error because
+//		// the image pull fails, the task should fail. If we don't fail task here,
+//		// then the cached image will probably be used for creating container, and we
+//		// don't want to use cached image for both cases.
+//		if mtask.cfg.ImagePullBehavior == config.ImagePullAlwaysBehavior ||
+//			mtask.cfg.ImagePullBehavior == config.ImagePullOnceBehavior {
+//			seelog.Errorf("Managed task [%s]: error while pulling image %s for container %s , moving task to STOPPED: %v",
+//				mtask.Arn, container.Image, container.Name, event.Error)
+//			// The task should be stopped regardless of whether this container is
+//			// essential or non-essential.
+//			mtask.SetDesiredStatus(apitaskstatus.TaskStopped)
+//			return false
+//		}
+//		// If the agent pull behavior is prefer-cached, we receive the error because
+//		// the image pull fails and there is no cached image in local, we don't make
+//		// the task fail here, will let create container handle it instead.
+//		// If the agent pull behavior is default, use local image cache directly,
+//		// assuming it exists.
+//		seelog.Errorf("Managed task [%s]: error while pulling container %s and image %s, will try to run anyway: %v",
+//			mtask.Arn, container.Name, container.Image, event.Error)
+//		// proceed anyway
+//		return true
+//	case apicontainerstatus.ContainerStopped:
+//		// Container's desired transition was to 'STOPPED'
+//		return mtask.handleContainerStoppedTransitionError(event, container, currentKnownStatus)
+//	case apicontainerstatus.ContainerStatusNone:
+//		fallthrough
+//	case apicontainerstatus.ContainerCreated:
+//		// No need to explicitly stop containers if this is a * -> NONE/CREATED transition
+//		seelog.Warnf("Managed task [%s]: error creating container [%s]; marking its desired status as STOPPED: %v",
+//			mtask.Arn, container.Name, event.Error)
+//		container.SetKnownStatus(currentKnownStatus)
+//		container.SetDesiredStatus(apicontainerstatus.ContainerStopped)
+//		return false
+//	default:
+//		// If this is a * -> RUNNING / RESOURCES_PROVISIONED transition, we need to stop
+//		// the container.
+//		seelog.Warnf("Managed task [%s]: error starting/provisioning container[%s]; marking its desired status as STOPPED: %v",
+//			mtask.Arn, container.Name, event.Error)
+//		container.SetKnownStatus(currentKnownStatus)
+//		container.SetDesiredStatus(apicontainerstatus.ContainerStopped)
+//		errorName := event.Error.ErrorName()
+//		if errorName == dockerapi.DockerTimeoutErrorName || errorName == dockerapi.CannotInspectContainerErrorName {
+//			// If there's an error with inspecting the container or in case of timeout error,
+//			// we'll also assume that the container has transitioned to RUNNING and issue
+//			// a stop. See #1043 for details
+//			seelog.Warnf("Managed task [%s]: forcing container [%s] to stop",
+//				mtask.Arn, container.Name)
+//			go mtask.engine.transitionContainer(mtask.Task, container, apicontainerstatus.ContainerStopped)
+//		}
+//		// Container known status not changed, no need for further processing
+//		return false
+//	}
+//}
 
 // handleContainerStoppedTransitionError handles an error when transitioning a container to
 // STOPPED. It returns a boolean indicating whether the tak can continue with updating its
