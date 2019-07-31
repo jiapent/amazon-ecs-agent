@@ -420,6 +420,20 @@ func (mtask *managedTask) handleContainerChange(containerChange dockerContainerC
 	containerKnownStatus := container.GetKnownStatus()
 	mtask.handleStoppedToRunningContainerTransition(event.Status, container)
 
+	// If this is a stop event for non-essential restarting container, we'll do a inspect to double check.
+	if container.IsAutoRestartNonEssentialContainer() &&
+		containerChange.source == fromDockerEvent {
+		if event.Status == apicontainerstatus.ContainerStopped &&
+			containerKnownStatus != apicontainerstatus.ContainerRestarting &&
+				containerKnownStatus != apicontainerstatus.ContainerStopped {
+			mtask.engine.checkContainerState(container, mtask.Task)
+			return
+		} else if event.Status == apicontainerstatus.ContainerRunning {
+			// ignore running events since we don't know in which lifecycle this occurs
+			return
+		}
+	}
+
 	if containerChange.containerPrevRestartAttempts < container.GetRestartAttempts() ||
 		event.Status <= containerKnownStatus {
 		seelog.Infof("Managed task [%s]: redundant container state change. %s to %s, but already %s",
