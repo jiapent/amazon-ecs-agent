@@ -419,12 +419,15 @@ func (mtask *managedTask) handleContainerChange(containerChange dockerContainerC
 	// to be known running so it will be stopped. Subsequently ignore these backward transitions
 	containerKnownStatus := container.GetKnownStatus()
 	mtask.handleStoppedToRunningContainerTransition(event.Status, container)
-	if event.Status <= containerKnownStatus {
+
+	if containerChange.containerPrevRestartAttempts < container.GetRestartAttempts() ||
+		event.Status <= containerKnownStatus {
 		seelog.Infof("Managed task [%s]: redundant container state change. %s to %s, but already %s",
 			mtask.Arn, container.Name, event.Status.String(), containerKnownStatus.String())
 
 		// Only update container metadata when status stays RUNNING
-		if event.Status == containerKnownStatus && event.Status == apicontainerstatus.ContainerRunning {
+		if containerChange.containerPrevRestartAttempts == container.GetRestartAttempts() &&
+			event.Status == containerKnownStatus && event.Status == apicontainerstatus.ContainerRunning {
 			updateContainerMetadata(&event.DockerContainerMetadata, container, mtask.Task)
 		}
 		return
@@ -432,7 +435,14 @@ func (mtask *managedTask) handleContainerChange(containerChange dockerContainerC
 
 	// Update the container to be known
 	currentKnownStatus := containerKnownStatus
-	container.SetKnownStatus(event.Status)
+
+	if shouldRestartContainerDueToStop(container, containerChange) {
+		container.SetKnownStatus(apicontainerstatus.ContainerRestarting)
+		container.IncrementRestartAttempts()
+	} else {
+		container.SetKnownStatus(event.Status)
+	}
+
 	updateContainerMetadata(&event.DockerContainerMetadata, container, mtask.Task)
 
 	if event.Error != nil {
@@ -463,6 +473,84 @@ func (mtask *managedTask) handleContainerChange(containerChange dockerContainerC
 		mtask.emitTaskEvent(mtask.Task, taskStateChangeReason)
 	}
 }
+
+func shouldRestartContainerDueToStop(container *apicontainer.Container, containerChange dockerContainerChange) bool {
+	exitCode := 0
+	return container.IsAutoRestartNonEssentialContainer() &&
+		container.GetDesiredStatus() == apicontainerstatus.ContainerRunning &&
+		containerChange.source != fromDockerEvent &&
+		containerChange.event.Status == apicontainerstatus.ContainerStopped &&
+		(containerChange.event.ExitCode != &exitCode &&
+			container.RestartPolicy == apicontainer.OnFailure &&
+			container.CanMakeRestartAttempt() ||
+			container.RestartPolicy == apicontainer.Always)
+}
+
+//// handleContainerChange updates a container's known status. If the message
+//// contains any interesting information (like exit codes or ports), they are
+//// propagated.
+//func (mtask *managedTask) handleContainerChange(containerChange dockerContainerChange) {
+//	// locate the container
+//	container := containerChange.container
+//	found := mtask.isContainerFound(container)
+//	if !found {
+//		seelog.Criticalf("Managed task [%s]: state error; invoked with another task's container [%s]!",
+//			mtask.Arn, container.Name)
+//		return
+//	}
+//
+//	event := containerChange.event
+//	seelog.Infof("Managed task [%s]: handling container change [%v] for container [%s]",
+//		mtask.Arn, event, container.Name)
+//
+//	// If this is a backwards transition stopped->running, the first time set it
+//	// to be known running so it will be stopped. Subsequently ignore these backward transitions
+//	containerKnownStatus := container.GetKnownStatus()
+//	mtask.handleStoppedToRunningContainerTransition(event.Status, container)
+//	if event.Status <= containerKnownStatus {
+//		seelog.Infof("Managed task [%s]: redundant container state change. %s to %s, but already %s",
+//			mtask.Arn, container.Name, event.Status.String(), containerKnownStatus.String())
+//
+//		// Only update container metadata when status stays RUNNING
+//		if event.Status == containerKnownStatus && event.Status == apicontainerstatus.ContainerRunning {
+//			updateContainerMetadata(&event.DockerContainerMetadata, container, mtask.Task)
+//		}
+//		return
+//	}
+//
+//	// Update the container to be known
+//	currentKnownStatus := containerKnownStatus
+//	container.SetKnownStatus(event.Status)
+//	updateContainerMetadata(&event.DockerContainerMetadata, container, mtask.Task)
+//
+//	if event.Error != nil {
+//		proceedAnyway := mtask.handleEventError(containerChange, currentKnownStatus)
+//		if !proceedAnyway {
+//			return
+//		}
+//	}
+//
+//	mtask.RecordExecutionStoppedAt(container)
+//	seelog.Debugf("Managed task [%s]: sending container change event to tcs, container: [%s(%s)], status: %s",
+//		mtask.Arn, container.Name, event.DockerID, event.Status.String())
+//	err := mtask.containerChangeEventStream.WriteToEventStream(event)
+//	if err != nil {
+//		seelog.Warnf("Managed task [%s]: failed to write container [%s] change event to tcs event stream: %v",
+//			mtask.Arn, container.Name, err)
+//	}
+//
+//	mtask.emitContainerEvent(mtask.Task, container, "")
+//	if mtask.UpdateStatus() {
+//		seelog.Infof("Managed task [%s]: container change also resulted in task change [%s]: [%s]",
+//			mtask.Arn, container.Name, mtask.GetDesiredStatus().String())
+//		// If knownStatus changed, let it be known
+//		var taskStateChangeReason string
+//		if mtask.GetKnownStatus().Terminal() {
+//			taskStateChangeReason = mtask.Task.GetTerminalReason()
+//		}
+//		mtask.emitTaskEvent(mtask.Task, taskStateChangeReason)
+//	}
+//}
 
 // handleResourceStateChange attempts to update resource's known status depending on
 // the current status and errors during transition
