@@ -66,7 +66,23 @@ const (
 
 	// TargetLogDriver is to show secret target being "LOG_DRIVER", the default will be "CONTAINER"
 	SecretTargetLogDriver = "LOG_DRIVER"
+
+	// Default initial Auto-restart backoff delay
+	DefaultInitialRestartDelay = 10 * time.Second
 )
+
+const (
+	// not restarting at all
+	NEVER RestartPolicy = iota
+	// restarts a container if exit code is non-zero
+	OnFailure
+	// always restart container regardless of exit code and max retries
+	Always
+)
+
+type RestartPolicy int32
+
+type RestartCount uint32
 
 // DockerConfig represents additional metadata about a container to run. It's
 // remodeled from the `ecsacs` api model file. Eventually it should not exist
@@ -125,6 +141,14 @@ type Container struct {
 	Secrets []Secret `json:"secrets"`
 	// Essential denotes whether the container is essential or not
 	Essential bool
+	// RestartPolicy define in what condition will container be restarted
+	RestartPolicy RestartPolicy
+	// max restart retries if restarts 'On-Failure'
+	RestartMaxAttempts RestartCount
+	// current retries used
+	RestartAttempts RestartCount
+	// auto restart exponential backoff delay
+	RestartBackoffDelay time.Duration
 	// EntryPoint is entrypoint of the container, corresponding to docker option: --entrypoint
 	EntryPoint *[]string
 	// Environment is the environment variable set in the container
@@ -441,8 +465,9 @@ func (c *Container) IsKnownSteadyState() bool {
 
 // GetNextKnownStateProgression returns the state that the container should
 // progress to based on its `KnownState`. The progression is
-// incremental until the container reaches its steady state. From then on,
-// it transitions to `ContainerStopped`.
+// incremental until the container reaches its steady state. (The next state of
+// `ContainerCreated` and `ContainerRestarting` will both be 'ContainerRunning`.)
+// From then on, it transitions to `ContainerStopped`.
 //
 // For example:
 // a. if the steady state of the container is defined as `ContainerRunning`,
@@ -459,6 +484,10 @@ func (c *Container) IsKnownSteadyState() bool {
 func (c *Container) GetNextKnownStateProgression() apicontainerstatus.ContainerStatus {
 	if c.IsKnownSteadyState() {
 		return apicontainerstatus.ContainerStopped
+	}
+
+	if c.GetKnownStatus() == apicontainerstatus.ContainerCreated {
+		return apicontainerstatus.ContainerRunning
 	}
 
 	return c.GetKnownStatus() + 1
@@ -892,3 +921,50 @@ func (c *Container) GetStopTimeout() time.Duration {
 
 	return time.Duration(c.StopTimeout) * time.Second
 }
+
+func (c *Container) SetRestartBackoffDelay(delay time.Duration) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	c.RestartBackoffDelay = delay
+}
+
+func (c *Container) GetRestartBackoffDelay() time.Duration {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	return c.RestartBackoffDelay
+}
+
+func (c *Container) SetRestartAttempts(count RestartCount) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	c.RestartAttempts = count
+}
+
+func (c *Container) GetRestartAttempts() RestartCount {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	return c.RestartAttempts
+}
+
+func (c *Container) IncrementRestartAttempts() {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	c.RestartAttempts += 1
+}
+
+func (c *Container) CanMakeRestartAttempt() bool {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	return c.RestartAttempts < c.RestartMaxAttempts
+}
+
+func (c *Container) CanRestart() bool {
+	return c.GetDesiredStatus() != apicontainerstatus.ContainerStopped &&
+		c.CanMakeRestartAttempt()
+}
+
+func (c *Container) IsAutoRestartNonEssentialContainer() bool {
+	return !c.IsEssential() && c.RestartPolicy != NEVER
+}
+
+

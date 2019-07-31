@@ -25,6 +25,8 @@ const (
 	ContainerPulled
 	// ContainerCreated represents a container that has been created
 	ContainerCreated
+	// ContainerRestarting represents a container is waiting to be restarted
+	ContainerRestarting
 	// ContainerRunning represents a container that has started
 	ContainerRunning
 	// ContainerResourcesProvisioned represents a container that has completed provisioning all of its
