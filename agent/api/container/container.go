@@ -149,6 +149,10 @@ type Container struct {
 	RestartAttempts RestartCount
 	// auto restart exponential backoff delay
 	RestartBackoffDelay time.Duration
+	// DesiredToFullyStop is true if we are forcing a container to stop due to error, so won't try to restart
+	DesiredToFullyStopWhenReceivingStopped bool
+	// DesiredToRestart is we restart container due to Docker error
+	DesiredToRestartWhenReceivingStopped bool
 	// EntryPoint is entrypoint of the container, corresponding to docker option: --entrypoint
 	EntryPoint *[]string
 	// Environment is the environment variable set in the container
@@ -934,11 +938,11 @@ func (c *Container) GetRestartBackoffDelay() time.Duration {
 	return c.RestartBackoffDelay
 }
 
-func (c *Container) SetRestartAttempts(count RestartCount) {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-	c.RestartAttempts = count
-}
+//func (c *Container) SetRestartAttempts(count RestartCount) {
+//	c.lock.Lock()
+//	defer c.lock.Unlock()
+//	c.RestartAttempts = count
+//}
 
 func (c *Container) GetRestartAttempts() RestartCount {
 	c.lock.Lock()
@@ -965,4 +969,19 @@ func (c *Container) CanRestart() bool {
 
 func (c *Container) IsAutoRestartNonEssentialContainer() bool {
 	return !c.IsEssential() && c.RestartPolicy != NEVER
+}
+
+func (c *Container) IsDesiredToRestartWhenReceivingStopped() bool {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	defer func() {
+		c.DesiredToRestartWhenReceivingStopped = false
+	}()
+	return c.DesiredToRestartWhenReceivingStopped
+}
+
+func (c *Container) SetDesiredToRestartWhenReceivingStopped() {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	c.DesiredToRestartWhenReceivingStopped = true
 }
