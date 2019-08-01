@@ -15,6 +15,7 @@ package container
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"sync"
 	"time"
@@ -69,6 +70,9 @@ const (
 
 	// Default initial Auto-restart backoff delay
 	DefaultInitialRestartDelay = 10 * time.Second
+
+	// Default RestartMaxAttempts OnFailure
+	DefaultRestartMaxAttemptsOnFailure = math.MaxUint32
 )
 
 const (
@@ -959,12 +963,9 @@ func (c *Container) IncrementRestartAttempts() {
 func (c *Container) CanMakeRestartAttempt() bool {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	return c.RestartAttempts < c.RestartMaxAttempts
-}
-
-func (c *Container) CanRestart() bool {
-	return c.GetDesiredStatus() != apicontainerstatus.ContainerStopped &&
-		c.CanMakeRestartAttempt()
+	return c.RestartPolicy == Always ||
+		c.RestartPolicy == OnFailure &&
+		c.RestartAttempts < c.RestartMaxAttempts
 }
 
 func (c *Container) IsAutoRestartNonEssentialContainer() bool {
@@ -984,4 +985,12 @@ func (c *Container) SetDesiredToRestartWhenReceivingStopped() {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	c.DesiredToRestartWhenReceivingStopped = true
+}
+
+func (c *Container) SetRestartMaxAttemptsOnFailure() {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	if c.RestartPolicy == OnFailure && c.RestartMaxAttempts == 0 {
+		c.RestartMaxAttempts = DefaultRestartMaxAttemptsOnFailure
+	}
 }

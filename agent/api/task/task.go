@@ -234,6 +234,7 @@ func TaskFromACS(acsTask *ecsacs.Task, envelope *ecsacs.PayloadMessage) (*Task, 
 		}
 		container.TransitionDependenciesMap = make(map[apicontainerstatus.ContainerStatus]apicontainer.TransitionDependencySet)
 		container.SetRestartBackoffDelay(apicontainer.DefaultInitialRestartDelay)
+		container.SetRestartMaxAttemptsOnFailure()
 	}
 
 	//initialize resources map for task
