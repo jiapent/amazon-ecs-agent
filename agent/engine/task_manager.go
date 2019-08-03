@@ -470,6 +470,8 @@ func (mtask *managedTask) handleContainerChange(containerChange dockerContainerC
 
 	if needRestart {
 		container.IncrementRestartAttempts()
+		seelog.Infof("Managed task [%s]: need to restart due to container change [%v] for container [%s], restarting",
+			mtask.Arn, event, container.Name)
 		go mtask.engine.transitionContainer(mtask.Task, container, apicontainerstatus.ContainerRunning)
 	}
 
