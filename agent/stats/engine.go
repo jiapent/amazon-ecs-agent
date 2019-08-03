@@ -515,7 +515,8 @@ func (engine *DockerStatsEngine) handleDockerEvents(events ...interface{}) error
 		case apicontainerstatus.ContainerRunning:
 			engine.addAndStartStatsContainer(dockerContainerChangeEvent.DockerID)
 		case apicontainerstatus.ContainerStopped:
-			engine.removeContainer(dockerContainerChangeEvent.DockerID)
+			// engine.removeContainer(dockerContainerChangeEvent.DockerID)
+			seelog.Debugf("Ignoring event[STOPPED] for container, id: %s, status: %d", dockerContainerChangeEvent.DockerID, dockerContainerChangeEvent.Status)
 		default:
 			seelog.Debugf("Ignoring event for container, id: %s, status: %d", dockerContainerChangeEvent.DockerID, dockerContainerChangeEvent.Status)
 		}

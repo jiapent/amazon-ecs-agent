@@ -428,6 +428,8 @@ func (mtask *managedTask) handleContainerChange(containerChange dockerContainerC
 		if event.Status == apicontainerstatus.ContainerStopped &&
 			containerKnownStatus != apicontainerstatus.ContainerRestarting &&
 				containerKnownStatus != apicontainerstatus.ContainerStopped {
+			seelog.Infof("Managed task [%s]: container change [%v] for container [%s] is from Docker event, inspect again to double check",
+				mtask.Arn, event, container.Name)
 			mtask.engine.checkContainerState(container, mtask.Task)
 			return
 		} else if event.Status == apicontainerstatus.ContainerRunning {
