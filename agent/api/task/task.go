@@ -236,10 +236,10 @@ func TaskFromACS(acsTask *ecsacs.Task, envelope *ecsacs.PayloadMessage) (*Task, 
 		container.SetRestartBackoffDelay(apicontainer.DefaultInitialRestartDelay)
 		container.SetRestartMaxAttemptsOnFailure()
 		// TODO: only for testing
-		//if !container.Essential {
-		//	container.RestartPolicy = apicontainer.OnFailure
-		//	container.RestartMaxAttempts = 5
-		//}
+		if !container.Essential {
+			container.RestartPolicy = apicontainer.OnFailure
+			container.RestartMaxAttempts = 5
+		}
 	}
 
 	//initialize resources map for task
