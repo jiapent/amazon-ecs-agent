@@ -473,6 +473,10 @@ func (mtask *managedTask) handleContainerChange(containerChange dockerContainerC
 		go mtask.engine.transitionContainer(mtask.Task, container, apicontainerstatus.ContainerRunning)
 	}
 
+	if container.GetKnownStatus() == apicontainerstatus.ContainerRunning {
+		container.DesiredToRestartWhenReceivingStopped = false
+	}
+
 	mtask.RecordExecutionStoppedAt(container)
 	seelog.Debugf("Managed task [%s]: sending container change event to tcs, container: [%s(%s)], status: %s",
 		mtask.Arn, container.Name, event.DockerID, event.Status.String())
