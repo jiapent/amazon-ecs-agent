@@ -454,8 +454,13 @@ func (mtask *managedTask) handleContainerChange(containerChange dockerContainerC
 	container.SetKnownStatus(event.Status)
 	needRestart := false
 	if shouldRestartContainer(container, containerChange) {
+		seelog.Infof("Managed task [%s]: Change [%v] for container [%s] should be restarted",
+			mtask.Arn, event, container.Name)
 		container.SetKnownStatus(apicontainerstatus.ContainerRestarting)
 		needRestart = true
+	} else {
+		seelog.Infof("Managed task [%s]: Change [%v] for container [%s] should not be restarted",
+			mtask.Arn, event, container.Name)
 	}
 
 	updateContainerMetadata(&event.DockerContainerMetadata, container, mtask.Task)
