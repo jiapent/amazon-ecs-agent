@@ -26,7 +26,6 @@ func dockerStatsToContainerStats(dockerStats *types.StatsJSON) (*ContainerStats,
 	// The length of PercpuUsage represents the number of cores in an instance.
 	if len(dockerStats.CPUStats.CPUUsage.PercpuUsage) == 0 || numCores == uint64(0) {
 		seelog.Debug("Invalid container statistics reported, no cpu core usage reported")
-		seelog.Debug(dockerStats)
 		return nil, fmt.Errorf("Invalid container statistics reported, no cpu core usage reported")
 	}
 
