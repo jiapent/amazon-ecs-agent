@@ -942,12 +942,6 @@ func (c *Container) GetRestartBackoffDelay() time.Duration {
 	return c.RestartBackoffDelay
 }
 
-//func (c *Container) SetRestartAttempts(count RestartCount) {
-//	c.lock.Lock()
-//	defer c.lock.Unlock()
-//	c.RestartAttempts = count
-//}
-
 func (c *Container) GetRestartAttempts() RestartCount {
 	c.lock.Lock()
 	defer c.lock.Unlock()
