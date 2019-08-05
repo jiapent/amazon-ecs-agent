@@ -461,9 +461,6 @@ func (mtask *managedTask) handleContainerChange(containerChange dockerContainerC
 			mtask.Arn, event, container.Name)
 		container.SetKnownStatus(apicontainerstatus.ContainerRestarting)
 		needRestart = true
-	} else {
-		seelog.Infof("Managed task [%s]: Change [%v] for container [%s] should not be restarted",
-			mtask.Arn, event, container.Name)
 	}
 
 	updateContainerMetadata(&event.DockerContainerMetadata, container, mtask.Task)
@@ -484,6 +481,7 @@ func (mtask *managedTask) handleContainerChange(containerChange dockerContainerC
 	}
 
 	if container.GetKnownStatus() == apicontainerstatus.ContainerRunning {
+		// Reset desired to restart flag is restart success
 		container.DesiredToRestartWhenReceivingStopped = false
 	}
 
@@ -533,72 +531,6 @@ func shouldRestartContainerDueToStop(container *apicontainer.Container, containe
 			containerChange.event.ExitCode != &exitCode) &&
 		container.CanMakeRestartAttempt()
 }
-
-//// handleContainerChange updates a container's known status. If the message
-//// contains any interesting information (like exit codes or ports), they are
-//// propagated.
-//func (mtask *managedTask) handleContainerChange(containerChange dockerContainerChange) {
-//	// locate the container
-//	container := containerChange.container
-//	found := mtask.isContainerFound(container)
-//	if !found {
-//		seelog.Criticalf("Managed task [%s]: state error; invoked with another task's container [%s]!",
-//			mtask.Arn, container.Name)
-//		return
-//	}
-//
-//	event := containerChange.event
-//	seelog.Infof("Managed task [%s]: handling container change [%v] for container [%s]",
-//		mtask.Arn, event, container.Name)
-//
-//	// If this is a backwards transition stopped->running, the first time set it
-//	// to be known running so it will be stopped. Subsequently ignore these backward transitions
-//	containerKnownStatus := container.GetKnownStatus()
-//	mtask.handleStoppedToRunningContainerTransition(event.Status, container)
-//	if event.Status <= containerKnownStatus {
-//		seelog.Infof("Managed task [%s]: redundant container state change. %s to %s, but already %s",
-//			mtask.Arn, container.Name, event.Status.String(), containerKnownStatus.String())
-//
-//		// Only update container metadata when status stays RUNNING
-//		if event.Status == containerKnownStatus && event.Status == apicontainerstatus.ContainerRunning {
-//			updateContainerMetadata(&event.DockerContainerMetadata, container, mtask.Task)
-//		}
-//		return
-//	}
-//
-//	// Update the container to be known
-//	currentKnownStatus := containerKnownStatus
-//	container.SetKnownStatus(event.Status)
-//	updateContainerMetadata(&event.DockerContainerMetadata, container, mtask.Task)
-//
-//	if event.Error != nil {
-//		proceedAnyway := mtask.handleEventError(containerChange, currentKnownStatus)
-//		if !proceedAnyway {
-//			return
-//		}
-//	}
-//
-//	mtask.RecordExecutionStoppedAt(container)
-//	seelog.Debugf("Managed task [%s]: sending container change event to tcs, container: [%s(%s)], status: %s",
-//		mtask.Arn, container.Name, event.DockerID, event.Status.String())
-//	err := mtask.containerChangeEventStream.WriteToEventStream(event)
-//	if err != nil {
-//		seelog.Warnf("Managed task [%s]: failed to write container [%s] change event to tcs event stream: %v",
-//			mtask.Arn, container.Name, err)
-//	}
-//
-//	mtask.emitContainerEvent(mtask.Task, container, "")
-//	if mtask.UpdateStatus() {
-//		seelog.Infof("Managed task [%s]: container change also resulted in task change [%s]: [%s]",
-//			mtask.Arn, container.Name, mtask.GetDesiredStatus().String())
-//		// If knownStatus changed, let it be known
-//		var taskStateChangeReason string
-//		if mtask.GetKnownStatus().Terminal() {
-//			taskStateChangeReason = mtask.Task.GetTerminalReason()
-//		}
-//		mtask.emitTaskEvent(mtask.Task, taskStateChangeReason)
-//	}
-//}
 
 // handleResourceStateChange attempts to update resource's known status depending on
 // the current status and errors during transition
@@ -679,7 +611,6 @@ func (mtask *managedTask) emitDockerContainerChange(change dockerContainerChange
 		seelog.Infof("Managed task [%s]: unable to emit docker container change due to closed context: %v",
 			mtask.Arn, mtask.ctx.Err())
 	}
-	seelog.Warnf("Emit Docker Message for container [%s]: change %s, from source: %s, restart attempts: %d", change.container, change.event.String(), change.source, change.containerPrevRestartAttempts)
 	mtask.dockerMessages <- change
 }
 
@@ -852,73 +783,6 @@ func (mtask *managedTask) handleEventError(containerChange dockerContainerChange
 		return false
 	}
 }
-
-//// handleEventError handles a container change event error and decides whether
-//// we should proceed to transition the container
-//func (mtask *managedTask) handleEventError(containerChange dockerContainerChange, currentKnownStatus apicontainerstatus.ContainerStatus) bool {
-//	container := containerChange.container
-//	event := containerChange.event
-//	if container.ApplyingError == nil {
-//		container.ApplyingError = apierrors.NewNamedError(event.Error)
-//	}
-//	switch event.Status {
-//	// event.Status is the desired container transition from container's known status
-//	// (* -> event.Status)
-//	case apicontainerstatus.ContainerPulled:
-//		// If the agent pull behavior is always or once, we receive the error because
-//		// the image pull fails, the task should fail. If we don't fail task here,
-//		// then the cached image will probably be used for creating container, and we
-//		// don't want to use cached image for both cases.
-//		if mtask.cfg.ImagePullBehavior == config.ImagePullAlwaysBehavior ||
-//			mtask.cfg.ImagePullBehavior == config.ImagePullOnceBehavior {
-//			seelog.Errorf("Managed task [%s]: error while pulling image %s for container %s , moving task to STOPPED: %v",
-//				mtask.Arn, container.Image, container.Name, event.Error)
-//			// The task should be stopped regardless of whether this container is
-//			// essential or non-essential.
-//			mtask.SetDesiredStatus(apitaskstatus.TaskStopped)
-//			return false
-//		}
-//		// If the agent pull behavior is prefer-cached, we receive the error because
-//		// the image pull fails and there is no cached image in local, we don't make
-//		// the task fail here, will let create container handle it instead.
-//		// If the agent pull behavior is default, use local image cache directly,
-//		// assuming it exists.
-//		seelog.Errorf("Managed task [%s]: error while pulling container %s and image %s, will try to run anyway: %v",
-//			mtask.Arn, container.Name, container.Image, event.Error)
-//		// proceed anyway
-//		return true
-//	case apicontainerstatus.ContainerStopped:
-//		// Container's desired transition was to 'STOPPED'
-//		return mtask.handleContainerStoppedTransitionError(event, container, currentKnownStatus)
-//	case apicontainerstatus.ContainerStatusNone:
-//		fallthrough
-//	case apicontainerstatus.ContainerCreated:
-//		// No need to explicitly stop containers if this is a * -> NONE/CREATED transition
-//		seelog.Warnf("Managed task [%s]: error creating container [%s]; marking its desired status as STOPPED: %v",
-//			mtask.Arn, container.Name, event.Error)
-//		container.SetKnownStatus(currentKnownStatus)
-//		container.SetDesiredStatus(apicontainerstatus.ContainerStopped)
-//		return false
-//	default:
-//		// If this is a * -> RUNNING / RESOURCES_PROVISIONED transition, we need to stop
-//		// the container.
-//		seelog.Warnf("Managed task [%s]: error starting/provisioning container[%s]; marking its desired status as STOPPED: %v",
-//			mtask.Arn, container.Name, event.Error)
-//		container.SetKnownStatus(currentKnownStatus)
-//		container.SetDesiredStatus(apicontainerstatus.ContainerStopped)
-//		errorName := event.Error.ErrorName()
-//		if errorName == dockerapi.DockerTimeoutErrorName || errorName == dockerapi.CannotInspectContainerErrorName {
-//			// If there's an error with inspecting the container or in case of timeout error,
-//			// we'll also assume that the container has transitioned to RUNNING and issue
-//			// a stop. See #1043 for details
-//			seelog.Warnf("Managed task [%s]: forcing container [%s] to stop",
-//				mtask.Arn, container.Name)
-//			go mtask.engine.transitionContainer(mtask.Task, container, apicontainerstatus.ContainerStopped)
-//		}
-//		// Container known status not changed, no need for further processing
-//		return false
-//	}
-//}
 
 // handleContainerStoppedTransitionError handles an error when transitioning a container to
 // STOPPED. It returns a boolean indicating whether the tak can continue with updating its

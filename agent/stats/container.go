@@ -96,7 +96,7 @@ func (container *StatsContainer) collect() {
 				seelog.Warnf("Error determining if the container %s is terminal, stopping stats collection: %v", dockerID, err)
 				container.StopStatsCollection()
 			} else if restartingOrTerminal {
-				seelog.Infof("Container %s is terminal, stopping stats collection", dockerID)
+				seelog.Infof("Container %s is restarting or terminal, stopping stats collection", dockerID)
 				container.StopStatsCollection()
 			}
 		}

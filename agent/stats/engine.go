@@ -510,7 +510,7 @@ func (engine *DockerStatsEngine) handleDockerEvents(events ...interface{}) error
 		if !ok {
 			return fmt.Errorf("Unexpected event received, expected docker container change event")
 		}
-		seelog.Debugf("Received docker event", dockerContainerChangeEvent)
+
 		switch dockerContainerChangeEvent.Status {
 		case apicontainerstatus.ContainerRunning:
 			engine.addAndStartStatsContainer(dockerContainerChangeEvent.DockerID)
