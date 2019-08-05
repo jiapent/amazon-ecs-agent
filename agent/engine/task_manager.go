@@ -432,19 +432,31 @@ func (mtask *managedTask) handleContainerChange(containerChange dockerContainerC
 				mtask.Arn, event, container.Name)
 			mtask.engine.checkContainerState(container, mtask.Task)
 
+			if event.Error == nil {
+				seelog.Warnf("Managed task [%s]: writing event: %s to event stream", mtask.Arn, event)
+				err := mtask.containerChangeEventStream.WriteToEventStream(event)
+				seelog.Warnf("Managed task [%s]: wrote event: %s to event stream", mtask.Arn, event)
+				if err != nil {
+					seelog.Warnf("Managed task [%s]: failed to write container [%s] change event to tcs event stream: %v",
+						mtask.Arn, container.Name, err)
+				}
+			}
+			return
 		} else if event.Status == apicontainerstatus.ContainerRunning {
 			// ignore running events since we don't know in which lifecycle this occurs
-		}
-		if event.Error == nil {
-			seelog.Warnf("Managed task [%s]: writing event: %s to event stream", mtask.Arn, event)
-			err := mtask.containerChangeEventStream.WriteToEventStream(event)
-			seelog.Warnf("Managed task [%s]: wrote event: %s to event stream", mtask.Arn, event)
-			if err != nil {
-				seelog.Warnf("Managed task [%s]: failed to write container [%s] change event to tcs event stream: %v",
-					mtask.Arn, container.Name, err)
+
+			if event.Error == nil {
+				seelog.Warnf("Managed task [%s]: writing event: %s to event stream", mtask.Arn, event)
+				err := mtask.containerChangeEventStream.WriteToEventStream(event)
+				seelog.Warnf("Managed task [%s]: wrote event: %s to event stream", mtask.Arn, event)
+				if err != nil {
+					seelog.Warnf("Managed task [%s]: failed to write container [%s] change event to tcs event stream: %v",
+						mtask.Arn, container.Name, err)
+				}
 			}
+			return
 		}
-		return
+
 	}
 
 	if containerChange.containerPrevRestartAttempts < container.GetRestartAttempts() ||
