@@ -460,7 +460,6 @@ func (engine *DockerTaskEngine) checkTaskState(task *apitask.Task) {
 // checkTaskState inspects the state of input container and writes
 // its state to the managed task's container channel.
 func (engine *DockerTaskEngine) checkContainerState(container *apicontainer.Container, task *apitask.Task) {
-
 	taskContainers, ok := engine.state.ContainerMapByArn(task.Arn)
 	if !ok {
 		seelog.Warnf("Task engine [%s]: could not check container %s state; no task in state", task.Arn, container.Name)

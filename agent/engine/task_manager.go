@@ -431,11 +431,18 @@ func (mtask *managedTask) handleContainerChange(containerChange dockerContainerC
 			seelog.Infof("Managed task [%s]: container change [%v] for container [%s] is from Docker event, inspect again to double check",
 				mtask.Arn, event, container.Name)
 			mtask.engine.checkContainerState(container, mtask.Task)
-			return
+
 		} else if event.Status == apicontainerstatus.ContainerRunning {
 			// ignore running events since we don't know in which lifecycle this occurs
-			return
 		}
+		if event.Error == nil {
+			err := mtask.containerChangeEventStream.WriteToEventStream(event)
+			if err != nil {
+				seelog.Warnf("Managed task [%s]: failed to write container [%s] change event to tcs event stream: %v",
+					mtask.Arn, container.Name, err)
+			}
+		}
+		return
 	}
 
 	if containerChange.containerPrevRestartAttempts < container.GetRestartAttempts() ||
@@ -678,6 +685,7 @@ func (mtask *managedTask) emitDockerContainerChange(change dockerContainerChange
 		seelog.Infof("Managed task [%s]: unable to emit docker container change due to closed context: %v",
 			mtask.Arn, mtask.ctx.Err())
 	}
+	seelog.Warnf("Emit Docker Message for container [%s]: change %s, from source: %s, restart attempts: %d", change.container, change.event.String(), change.source, change.containerPrevRestartAttempts)
 	mtask.dockerMessages <- change
 }
 
