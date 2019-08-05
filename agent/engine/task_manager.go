@@ -436,7 +436,9 @@ func (mtask *managedTask) handleContainerChange(containerChange dockerContainerC
 			// ignore running events since we don't know in which lifecycle this occurs
 		}
 		if event.Error == nil {
+			seelog.Warnf("Managed task [%s]: writing event: %s to event stream", mtask.Arn, event)
 			err := mtask.containerChangeEventStream.WriteToEventStream(event)
+			seelog.Warnf("Managed task [%s]: wrote event: %s to event stream", mtask.Arn, event)
 			if err != nil {
 				seelog.Warnf("Managed task [%s]: failed to write container [%s] change event to tcs event stream: %v",
 					mtask.Arn, container.Name, err)
