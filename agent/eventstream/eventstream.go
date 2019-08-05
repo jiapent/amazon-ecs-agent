@@ -94,6 +94,7 @@ func (eventStream *EventStream) WriteToEventStream(event interface{}) error {
 	if !eventStream.open {
 		return fmt.Errorf("Event stream is closed")
 	}
+	seelog.Warnf("Writing event: %s to stream", event)
 	eventStream.event <- event
 	return nil
 }
