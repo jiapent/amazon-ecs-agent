@@ -16,6 +16,7 @@ package stats
 import (
 	"context"
 	"errors"
+	"github.com/aws/amazon-ecs-agent/agent/api/container/status"
 	"time"
 
 	"github.com/aws/amazon-ecs-agent/agent/dockerclient"
@@ -84,7 +85,8 @@ func (container *StatsContainer) collect() {
 			// Check if the container is terminal. If it is, stop collecting metrics.
 			// We might sometimes miss events from docker task  engine and this helps
 			// in reconciling the state.
-			terminal, err := container.terminal()
+			// terminal, err := container.terminal()
+			restartingOrTerminal, err := container.restartingOrTerminal()
 			if err != nil {
 				// Error determining if the container is terminal. This means that the container
 				// id could not be resolved to a container that is being tracked by the
@@ -93,7 +95,7 @@ func (container *StatsContainer) collect() {
 				// container. So, clean-up anyway.
 				seelog.Warnf("Error determining if the container %s is terminal, stopping stats collection: %v", dockerID, err)
 				container.StopStatsCollection()
-			} else if terminal {
+			} else if restartingOrTerminal {
 				seelog.Infof("Container %s is terminal, stopping stats collection", dockerID)
 				container.StopStatsCollection()
 			}
@@ -125,4 +127,12 @@ func (container *StatsContainer) terminal() (bool, error) {
 		return false, err
 	}
 	return dockerContainer.Container.KnownTerminal(), nil
+}
+
+func (container *StatsContainer) restartingOrTerminal() (bool, error) {
+	dockerContainer, err := container.resolver.ResolveContainer(container.containerMetadata.DockerID)
+	if err != nil {
+		return false, err
+	}
+	return dockerContainer.Container.KnownTerminal() || dockerContainer.Container.GetKnownStatus() == status.ContainerRestarting, nil
 }
