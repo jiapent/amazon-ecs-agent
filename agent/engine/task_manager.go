@@ -412,8 +412,8 @@ func (mtask *managedTask) handleContainerChange(containerChange dockerContainerC
 	}
 
 	event := containerChange.event
-	seelog.Infof("Managed task [%s]: handling container change [%v] for container [%s]",
-		mtask.Arn, event, container.Name)
+	seelog.Infof("Managed task [%s]: handling container change [%v](restartAttempts: %d) from source: [%s] for container [%s](restartAttempts: %d)",
+		mtask.Arn, event, containerChange.containerPrevRestartAttempts, containerChange.source, container.Name, container.RestartAttempts)
 
 	// If this is a backwards transition stopped->running, the first time set it
 	// to be known running so it will be stopped. Subsequently ignore these backward transitions
