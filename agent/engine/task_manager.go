@@ -431,7 +431,7 @@ func (mtask *managedTask) handleContainerChange(containerChange dockerContainerC
 			seelog.Infof("Managed task [%s]: container change [%v] for container [%s] is from Docker event, inspect again to double check",
 				mtask.Arn, event, container.Name)
 			mtask.engine.checkContainerState(container, mtask.Task)
-
+			seelog.Warnf("Event error? %s", event.Error == nil)
 			if event.Error == nil {
 				seelog.Warnf("Managed task [%s]: writing event: %s to event stream", mtask.Arn, event)
 				err := mtask.containerChangeEventStream.WriteToEventStream(event)
