@@ -477,17 +477,8 @@ func TestDependencyInvalidRestartPolicy(t *testing.T) {
 
 		finished := make(chan interface{})
 		go func() {
-			// task should transition to stopped
-			for {
-				event := <-stateChangeEvents
-				if event.GetEventType() != statechange.TaskEvent {
-					continue
-				}
-				taskEvent := event.(api.TaskStateChange)
-				if taskEvent.TaskARN == testTask.Arn {
-					t.Errorf("Should not start task with invalid restarting dependencies.")
-				}
-			}
+			// task should transition to stopped due to invalid dependencies
+			verifyTaskIsStoppedWithReason(stateChangeEvents, testTask)
 			close(finished)
 		}()
 

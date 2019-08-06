@@ -110,6 +110,20 @@ func verifyTaskIsStopped(stateChangeEvents <-chan statechange.Event, task *apita
 	}
 }
 
+func verifyTaskIsStoppedWithReason(stateChangeEvents <-chan statechange.Event, task *apitask.Task) {
+	for {
+		event := <-stateChangeEvents
+		if event.GetEventType() != statechange.TaskEvent {
+			continue
+		}
+		taskEvent := event.(api.TaskStateChange)
+		if taskEvent.TaskARN == task.Arn && taskEvent.Status >= apitaskstatus.TaskStopped &&
+			taskEvent.Reason != "" {
+			return
+		}
+	}
+}
+
 // waitForTaskStoppedByCheckStatus verify the task is in stopped status by checking the KnownStatusUnsafe field of the task
 func waitForTaskStoppedByCheckStatus(task *apitask.Task) {
 	for {
