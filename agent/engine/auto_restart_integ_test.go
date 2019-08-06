@@ -42,7 +42,7 @@ func TestAutoRestartOnFailure(t *testing.T) {
 	container1.Command = []string{"sleep 15"}
 	container1.Essential = true
 
-	restartMaxAttempts := 3
+	var restartMaxAttempts apicontainer.RestartCount = 3
 	container2.EntryPoint = &entryPointForOS
 	container2.Command = []string{"sleep 2 && exit 1"}
 	container2.Essential = false
