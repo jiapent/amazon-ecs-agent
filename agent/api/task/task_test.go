@@ -1437,6 +1437,37 @@ func TestTaskUpdateKnownStatusChecksSteadyStateWhenSetToResourceProvisioned(t *t
 	assert.Equal(t, apitaskstatus.TaskRunning, testTask.GetKnownStatus())
 }
 
+func TestTaskUpdateKnownStatusForRestartingContainer(t *testing.T) {
+	testTask := &Task{
+		KnownStatusUnsafe: apitaskstatus.TaskStatusNone,
+		Containers: []*apicontainer.Container{
+			{
+				KnownStatusUnsafe: apicontainerstatus.ContainerCreated,
+				Essential: false,
+				RestartPolicy: apicontainer.OnFailure,
+				RestartAttempts: 0,
+			},
+			{
+				KnownStatusUnsafe: apicontainerstatus.ContainerRunning,
+			},
+			{
+				KnownStatusUnsafe: apicontainerstatus.ContainerRunning,
+			},
+		},
+	}
+
+	// First lifecycle of restarting container will influence task status
+	newStatus := testTask.updateTaskKnownStatus()
+	assert.Equal(t, apitaskstatus.TaskCreated, newStatus, "Incorrect status returned: %s", newStatus.String())
+	assert.Equal(t, apitaskstatus.TaskCreated, testTask.GetKnownStatus())
+
+	// Restarting container will not influence task status
+	testTask.Containers[0].RestartAttempts = 1
+	newStatus = testTask.updateTaskKnownStatus()
+	assert.Equal(t, apitaskstatus.TaskRunning, newStatus, "Incorrect status returned: %s", newStatus.String())
+	assert.Equal(t, apitaskstatus.TaskRunning, testTask.GetKnownStatus())
+}
+
 func assertSetStructFieldsEqual(t *testing.T, expected, actual interface{}) {
 	for i := 0; i < reflect.TypeOf(expected).NumField(); i++ {
 		expectedValue := reflect.ValueOf(expected).Field(i)

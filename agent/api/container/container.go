@@ -981,7 +981,7 @@ func (c *Container) SetDesiredToRestartWhenReceivingStopped() {
 	c.DesiredToRestartWhenReceivingStopped = true
 }
 
-func (c *Container) SetRestartMaxAttemptsOnFailure() {
+func (c *Container) SetDefaultRestartMaxAttemptsOnFailure() {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	if c.RestartPolicy == OnFailure && c.RestartMaxAttempts == 0 {

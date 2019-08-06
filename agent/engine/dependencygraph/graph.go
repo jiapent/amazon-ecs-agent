@@ -454,3 +454,4 @@ func onSteadyStateIsResolved(target *apicontainer.Container, run *apicontainer.C
 	return target.GetDesiredStatus() >= apicontainerstatus.ContainerCreated &&
 		run.GetKnownStatus() >= run.GetSteadyStateStatus()
 }
+

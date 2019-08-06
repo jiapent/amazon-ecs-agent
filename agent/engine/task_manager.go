@@ -758,7 +758,7 @@ func (mtask *managedTask) handleEventError(containerChange dockerContainerChange
 			} else {
 				container.DesiredToFullyStopWhenReceivingStopped = true
 			}
-
+			// not sending restart status in phase 1
 			return false
 		}
 

@@ -234,7 +234,7 @@ func TaskFromACS(acsTask *ecsacs.Task, envelope *ecsacs.PayloadMessage) (*Task, 
 		}
 		container.TransitionDependenciesMap = make(map[apicontainerstatus.ContainerStatus]apicontainer.TransitionDependencySet)
 		container.SetRestartBackoffDelay(apicontainer.DefaultInitialRestartDelay)
-		container.SetRestartMaxAttemptsOnFailure()
+		container.SetDefaultRestartMaxAttemptsOnFailure()
 		// TODO: only for testing
 		//if !container.Essential {
 		//	container.RestartPolicy = apicontainer.OnFailure
@@ -968,6 +968,9 @@ func (task *Task) getEarliestKnownTaskStatusForContainers() apitaskstatus.TaskSt
 	// Set earliest container status to an impossible to reach 'high' task status
 	earliest := apitaskstatus.TaskZombie
 	for _, container := range task.Containers {
+		if !container.IsEssential() && container.RestartAttempts > 0 {
+			continue
+		}
 		containerTaskStatus := apitaskstatus.MapContainerToTaskStatus(container.GetKnownStatus(), container.GetSteadyStateStatus())
 		if containerTaskStatus < earliest {
 			earliest = containerTaskStatus
