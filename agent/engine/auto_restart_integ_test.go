@@ -20,6 +20,7 @@ import (
 	"time"
 
 	apicontainer "github.com/aws/amazon-ecs-agent/agent/api/container"
+	"github.com/stretchr/testify/assert"
 )
 
 const restartingTimeout = 90 * time.Second
