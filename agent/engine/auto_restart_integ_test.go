@@ -66,7 +66,7 @@ func TestAutoRestartOnFailure(t *testing.T) {
 
 		// Status changes monitored
 		// TODO: change to restarting change after CP changes
-		for _ := range restartMaxAttempts {
+		for i := 0; i < restartMaxAttempts; i++ {
 			verifyContainerStoppedStateChange(t, taskEngine)
 			verifyContainerRunningStateChange(t, taskEngine)
 		}
