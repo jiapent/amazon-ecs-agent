@@ -16,7 +16,10 @@
 package engine
 
 import (
+	"testing"
 	"time"
+
+	apicontainer "github.com/aws/amazon-ecs-agent/agent/api/container"
 )
 
 const restartingTimeout = 90 * time.Second
