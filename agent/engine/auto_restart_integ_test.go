@@ -71,7 +71,6 @@ func TestAutoRestartOnFailure(t *testing.T) {
 		}
 
 		// After exhausted all retries, container2 is stopped
-		verifyContainerRunningStateChange(t, taskEngine)
 		verifyContainerStoppedStateChange(t, taskEngine)
 		verifyContainerStoppedStateChange(t, taskEngine)
 
