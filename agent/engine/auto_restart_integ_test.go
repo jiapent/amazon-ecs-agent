@@ -69,9 +69,9 @@ func TestAutoRestartOnFailure(t *testing.T) {
 		for i := 0; i < int(restartMaxAttempts); i++ {
 			verifyContainerRunningStateChange(t, taskEngine)
 		}
-		verifyTaskIsRunning(stateChangeEvents, testTask)
 
 		// After exhausted all retries, container2 is stopped
+		verifyContainerRunningStateChange(t, taskEngine)
 		verifyContainerStoppedStateChange(t, taskEngine)
 		verifyContainerStoppedStateChange(t, taskEngine)
 
