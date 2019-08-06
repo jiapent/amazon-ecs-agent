@@ -486,12 +486,15 @@ func (mtask *managedTask) handleContainerChange(containerChange dockerContainerC
 	}
 
 	mtask.RecordExecutionStoppedAt(container)
-	seelog.Debugf("Managed task [%s]: sending container change event to tcs, container: [%s(%s)], status: %s",
-		mtask.Arn, container.Name, event.DockerID, event.Status.String())
-	err := mtask.containerChangeEventStream.WriteToEventStream(event)
-	if err != nil {
-		seelog.Warnf("Managed task [%s]: failed to write container [%s] change event to tcs event stream: %v",
-			mtask.Arn, container.Name, err)
+
+	if !needRestart {
+		seelog.Debugf("Managed task [%s]: sending container change event to tcs, container: [%s(%s)], status: %s",
+			mtask.Arn, container.Name, event.DockerID, event.Status.String())
+		err := mtask.containerChangeEventStream.WriteToEventStream(event)
+		if err != nil {
+			seelog.Warnf("Managed task [%s]: failed to write container [%s] change event to tcs event stream: %v",
+				mtask.Arn, container.Name, err)
+		}
 	}
 
 	mtask.emitContainerEvent(mtask.Task, container, "")
