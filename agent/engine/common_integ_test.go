@@ -59,7 +59,7 @@ func verifyContainerRunningStateChange(t *testing.T, taskEngine TaskEngine) {
 	stateChangeEvents := taskEngine.StateChangeEvents()
 	event := <-stateChangeEvents
 	assert.Equal(t, event.(api.ContainerStateChange).Status, apicontainerstatus.ContainerRunning,
-		"Expected container to be RUNNING")
+		"Expected container to be RUNNING, but got: " + event.(api.ContainerStateChange).Status.String())
 }
 
 func verifyContainerStoppedStateChange(t *testing.T, taskEngine TaskEngine) {

@@ -26,7 +26,7 @@ import (
 const restartingTimeout = 90 * time.Second
 
 // TestAutoRestartOnFailure is a happy-case integration test that ensure container is restarted.
-// TODO: add StateChange event check when restarting is reported to CP
+// TODO: need to be updated after auto-restart CP changes
 func TestAutoRestartOnFailure(t *testing.T) {
 	taskEngine, done, _ := setupWithDefaultConfig(t)
 	defer done()
@@ -62,6 +62,14 @@ func TestAutoRestartOnFailure(t *testing.T) {
 		// Both containers should start
 		verifyContainerRunningStateChange(t, taskEngine)
 		verifyContainerRunningStateChange(t, taskEngine)
+		verifyTaskIsRunning(stateChangeEvents, testTask)
+
+		// Status changes monitored
+		// TODO: change to restarting change after CP changes
+		for _ := range restartMaxAttempts {
+			verifyContainerStoppedStateChange(t, taskEngine)
+			verifyContainerRunningStateChange(t, taskEngine)
+		}
 		verifyTaskIsRunning(stateChangeEvents, testTask)
 
 		// After exhausted all retries, container2 is stopped

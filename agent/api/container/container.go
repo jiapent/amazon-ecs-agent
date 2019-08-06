@@ -959,7 +959,7 @@ func (c *Container) CanMakeRestartAttempt() bool {
 	defer c.lock.Unlock()
 	return c.RestartPolicy == Always ||
 		c.RestartPolicy == OnFailure &&
-		c.RestartAttempts < c.RestartMaxAttempts
+		c.RestartAttempts <= c.RestartMaxAttempts
 }
 
 func (c *Container) IsAutoRestartNonEssentialContainer() bool {
