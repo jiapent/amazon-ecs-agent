@@ -46,6 +46,7 @@ const (
 	capabilityNvidiaDriverVersionInfix          = "nvidia-driver-version."
 	capabilityECREndpoint                       = "ecr-endpoint"
 	capabilityContainerOrdering                 = "container-ordering"
+	capabilityAutoRestartNonEssentialContainer = "auto-restart-noneseential-container"
 	taskEIAAttributeSuffix                      = "task-eia"
 	taskENITrunkingAttributeSuffix              = "task-eni-trunking"
 	branchCNIPluginVersionSuffix                = "branch-cni-plugin-version"
@@ -153,6 +154,9 @@ func (agent *ecsAgent) capabilities() ([]*ecs.Attribute, error) {
 
 	// support container ordering in agent
 	capabilities = appendNameOnlyAttribute(capabilities, attributePrefix+capabilityContainerOrdering)
+
+	// support auto restart non-eseential container in agent
+	capabilities = appendNameOnlyAttribute(capabilities, attributePrefix+capabilityAutoRestartNonEssentialContainer)
 
 	// ecs agent version 1.22.0 supports sharing PID namespaces and IPC resource namespaces
 	// with host EC2 instance and among containers within the task

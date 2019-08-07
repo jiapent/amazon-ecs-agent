@@ -452,7 +452,7 @@ func TestAutoRestartNever(t *testing.T) {
 
 	stateChangeEvents := taskEngine.StateChangeEvents()
 
-	taskArn := "testAutoRestartOnFailure"
+	taskArn := "testAutoRestartNever"
 	testTask := createTestTask(taskArn)
 
 	container1 := createTestContainerWithImageAndName(baseImageForOS, "container1")
@@ -500,14 +500,14 @@ func TestAutoRestartOnFailureExaustedAllAttempts(t *testing.T) {
 
 	stateChangeEvents := taskEngine.StateChangeEvents()
 
-	taskArn := "testAutoRestartOnFailure"
+	taskArn := "testAutoRestartOnFailureExaustedAllAttempts"
 	testTask := createTestTask(taskArn)
 
 	container1 := createTestContainerWithImageAndName(baseImageForOS, "container1")
 	container2 := createTestContainerWithImageAndName(baseImageForOS, "container2")
 
 	container1.EntryPoint = &entryPointForOS
-	container1.Command = []string{"sleep 15"}
+	container1.Command = []string{"sleep 45"}
 	container1.Essential = true
 
 	var restartMaxAttempts apicontainer.RestartCount = 3
@@ -558,7 +558,7 @@ func TestAutoRestartOnFailureExitZero(t *testing.T) {
 
 	stateChangeEvents := taskEngine.StateChangeEvents()
 
-	taskArn := "testAutoRestartOnFailure"
+	taskArn := "testAutoRestartOnFailureExitZero"
 	testTask := createTestTask(taskArn)
 
 	container1 := createTestContainerWithImageAndName(baseImageForOS, "container1")
@@ -609,14 +609,14 @@ func TestAutoRestartAlways(t *testing.T) {
 
 	stateChangeEvents := taskEngine.StateChangeEvents()
 
-	taskArn := "testAutoRestartOnFailure"
+	taskArn := "testAutoRestartAlways"
 	testTask := createTestTask(taskArn)
 
 	container1 := createTestContainerWithImageAndName(baseImageForOS, "container1")
 	container2 := createTestContainerWithImageAndName(baseImageForOS, "container2")
 
 	container1.EntryPoint = &entryPointForOS
-	container1.Command = []string{"sleep 15"}
+	container1.Command = []string{"sleep 45"}
 	container1.Essential = true
 
 	container2.EntryPoint = &entryPointForOS
