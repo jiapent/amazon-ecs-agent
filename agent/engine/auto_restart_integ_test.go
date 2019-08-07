@@ -223,7 +223,7 @@ func TestAutoRestartAlways(t *testing.T) {
 		close(finished)
 	}()
 
-	assert.True(t, container2.GetRestartAttempts() > 0, "Didn't restarted")
+	assert.True(t, container2.GetRestartAttempts() > 0, "Didn't restarted, restart attempts: " + container2.GetRestartAttempts())
 
 	waitFinished(t, finished, restartingTimeout)
 }
