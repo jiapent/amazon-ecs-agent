@@ -974,7 +974,7 @@ func (mtask *managedTask) startContainerTransitions(transitionFunc containerTran
 						Status: status,
 					},
 					source: none,
-					containerPrevRestartAttempts: cont.RestartAttempts,
+					containerPrevRestartAttempts: cont.GetRestartAttempts(),
 				}
 			}(cont, transition.nextState)
 			continue

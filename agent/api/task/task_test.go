@@ -1461,11 +1461,23 @@ func TestTaskUpdateKnownStatusForRestartingContainer(t *testing.T) {
 	assert.Equal(t, apitaskstatus.TaskCreated, newStatus, "Incorrect status returned: %s", newStatus.String())
 	assert.Equal(t, apitaskstatus.TaskCreated, testTask.GetKnownStatus())
 
-	// Restarting container will not influence task status
-	testTask.Containers[0].RestartAttempts = 1
+	// Restarting container will not influence task status except `Stopped`
+	testTask.Containers[0].SetRestartAttempts(1)
 	newStatus = testTask.updateTaskKnownStatus()
 	assert.Equal(t, apitaskstatus.TaskRunning, newStatus, "Incorrect status returned: %s", newStatus.String())
 	assert.Equal(t, apitaskstatus.TaskRunning, testTask.GetKnownStatus())
+
+	// Only all containers are stopped then task will be updated as `Stopped`
+	testTask.Containers[1].SetKnownStatus(apicontainerstatus.ContainerStopped)
+	testTask.Containers[2].SetKnownStatus(apicontainerstatus.ContainerStopped)
+	newStatus = testTask.updateTaskKnownStatus()
+	assert.Equal(t, apitaskstatus.TaskStatusNone, newStatus, "Incorrect status returned: %s", newStatus.String())
+	assert.Equal(t, apitaskstatus.TaskRunning, testTask.GetKnownStatus())
+
+	testTask.Containers[0].SetKnownStatus(apicontainerstatus.ContainerStopped)
+	newStatus = testTask.updateTaskKnownStatus()
+	assert.Equal(t, apitaskstatus.TaskStopped, newStatus, "Incorrect status returned: %s", newStatus.String())
+	assert.Equal(t, apitaskstatus.TaskStopped, testTask.GetKnownStatus())
 }
 
 func assertSetStructFieldsEqual(t *testing.T, expected, actual interface{}) {

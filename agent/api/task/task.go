@@ -905,7 +905,8 @@ func (task *Task) UpdateMountPoints(cont *apicontainer.Container, vols []types.M
 // It updates to the minimum of all containers no matter what
 // It returns a TaskStatus indicating what change occurred or TaskStatusNone if
 // there was no change
-// Invariant: task known status is the minimum of container known status
+// Task known status other than `Stopped` is the minimum of container known status which are not restarting
+// Task known status is `Stopped` when all containers are stopped
 func (task *Task) updateTaskKnownStatus() (newStatus apitaskstatus.TaskStatus) {
 	seelog.Debugf("api/task: Updating task's known status, task: %s", task.String())
 	// Set to a large 'impossible' status that can't be the min
@@ -919,7 +920,7 @@ func (task *Task) updateTaskKnownStatus() (newStatus apitaskstatus.TaskStatus) {
 		}
 
 		// Skip restarted container
-		if container.IsAutoRestartNonEssentialContainer() && container.RestartAttempts > 0 {
+		if container.IsAutoRestartNonEssentialContainer() && container.GetRestartAttempts() > 0 {
 			continue
 		}
 
@@ -949,6 +950,12 @@ func (task *Task) updateTaskKnownStatus() (newStatus apitaskstatus.TaskStatus) {
 	// defined. Instead we should get the task status for all containers' known
 	// statuses and compute the min of this
 	earliestKnownTaskStatus := task.getEarliestKnownTaskStatusForContainers()
+	if earliestKnownTaskStatus == apitaskstatus.TaskStopped && !task.allRestartingContainerStopped() {
+		seelog.Debugf(
+			"Containers not restarting are stopped while other restarting containers are running, not updating task status for task: %s",
+			task.String())
+		return apitaskstatus.TaskStatusNone
+	}
 	if task.GetKnownStatus() < earliestKnownTaskStatus {
 		seelog.Infof("api/task: Updating task's known status to: %s, task: %s",
 			earliestKnownTaskStatus.String(), task.String())
@@ -968,7 +975,7 @@ func (task *Task) getEarliestKnownTaskStatusForContainers() apitaskstatus.TaskSt
 	// Set earliest container status to an impossible to reach 'high' task status
 	earliest := apitaskstatus.TaskZombie
 	for _, container := range task.Containers {
-		if !container.IsEssential() && container.RestartAttempts > 0 {
+		if !container.IsEssential() && container.GetRestartAttempts() > 0 {
 			continue
 		}
 		containerTaskStatus := apitaskstatus.MapContainerToTaskStatus(container.GetKnownStatus(), container.GetSteadyStateStatus())
@@ -978,6 +985,17 @@ func (task *Task) getEarliestKnownTaskStatusForContainers() apitaskstatus.TaskSt
 	}
 
 	return earliest
+}
+
+func (task *Task) allRestartingContainerStopped() bool {
+	for _, container := range task.Containers {
+		if container.IsAutoRestartNonEssentialContainer() &&
+			container.GetRestartAttempts() > 0 &&
+			container.GetKnownStatus() < apicontainerstatus.ContainerStopped{
+			return false
+		}
+	}
+	return true
 }
 
 // DockerConfig converts the given container in this task to the format of
