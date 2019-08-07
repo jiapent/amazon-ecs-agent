@@ -522,14 +522,13 @@ func shouldRestartContainer(container *apicontainer.Container, containerChange d
 
 // check `Stopped` message is consistent with restart policy
 func shouldRestartContainerDueToStop(container *apicontainer.Container, containerChange dockerContainerChange) bool {
-	exitCode := 0
 	return container.IsAutoRestartNonEssentialContainer() &&
 		(containerChange.source == fromDockerApi ||
 		containerChange.source == fromInspect) &&
 		containerChange.event.Status == apicontainerstatus.ContainerStopped &&
 		(container.RestartPolicy == apicontainer.Always ||
 			container.RestartPolicy == apicontainer.OnFailure &&
-			containerChange.event.ExitCode != &exitCode) &&
+			*containerChange.event.ExitCode != 0) &&
 		container.CanMakeRestartAttempt()
 }
 

@@ -1522,6 +1522,10 @@ func (task *Task) updateContainerDesiredStatusUnsafe(taskDesiredStatus apitaskst
 		taskDesiredStatusToContainerStatus := apitaskstatus.MapTaskToContainerStatus(taskDesiredStatus, container.GetSteadyStateStatus())
 		if container.GetDesiredStatus() < taskDesiredStatusToContainerStatus {
 			container.SetDesiredStatus(taskDesiredStatusToContainerStatus)
+			if taskDesiredStatusToContainerStatus == apicontainerstatus.ContainerStopped &&
+				container.IsAutoRestartNonEssentialContainer() {
+				container.DesiredToFullyStopWhenReceivingStopped = true
+			}
 		}
 	}
 }
