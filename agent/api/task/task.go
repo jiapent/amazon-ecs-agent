@@ -94,6 +94,11 @@ const (
 	ipcModeTask     = "task"
 	ipcModeSharable = "shareable"
 	ipcModeNone     = "none"
+
+	restartBackoffMin        = 10 * time.Second
+	restartBackoffMax        = 5 * time.Minute
+	restartBackoffJitter     = 0.2
+	restartBackoffMultiplier = 1.5
 )
 
 // TaskOverrides are the overrides applied to a task
@@ -233,11 +238,12 @@ func TaskFromACS(acsTask *ecsacs.Task, envelope *ecsacs.PayloadMessage) (*Task, 
 			container.Command = *container.Overrides.Command
 		}
 		container.TransitionDependenciesMap = make(map[apicontainerstatus.ContainerStatus]apicontainer.TransitionDependencySet)
-		container.SetRestartBackoffDelay(apicontainer.DefaultInitialRestartDelay)
-		container.SetDefaultRestartMaxAttemptsOnFailure()
-		// TODO: only for testing
+
+		// TODO: populate restart related field from CP. and set to container
 		//if !container.Essential {
 		//	container.RestartPolicy = apicontainer.OnFailure
+		//  container.RestartBackoff = retry.NewExponentialBackoff(restartBackoffMin, restartBackoffMax, restartBackoffJitter, restartBackoffMultiplier)
+		//	container.SetDefaultRestartMaxAttemptsOnFailure()
 		//	container.RestartMaxAttempts = 5
 		//}
 	}

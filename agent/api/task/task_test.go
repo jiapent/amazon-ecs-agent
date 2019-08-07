@@ -1097,7 +1097,7 @@ func TestTaskFromACS(t *testing.T) {
 				Links:       []string{"link1", "link2"},
 				EntryPoint:  &[]string{"sh", "-c"},
 				Essential:   true,
-				RestartBackoffDelay: apicontainer.DefaultInitialRestartDelay,
+				RestartBackoff: nil,
 				Environment: map[string]string{"key": "value"},
 				CPU:         10,
 				Memory:      100,

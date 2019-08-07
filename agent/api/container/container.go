@@ -15,6 +15,7 @@ package container
 
 import (
 	"fmt"
+	"github.com/aws/amazon-ecs-agent/agent/utils/retry"
 	"math"
 	"strconv"
 	"sync"
@@ -67,9 +68,6 @@ const (
 
 	// TargetLogDriver is to show secret target being "LOG_DRIVER", the default will be "CONTAINER"
 	SecretTargetLogDriver = "LOG_DRIVER"
-
-	// Default initial Auto-restart backoff delay
-	DefaultInitialRestartDelay = 10 * time.Second
 
 	// Default RestartMaxAttempts OnFailure
 	DefaultRestartMaxAttemptsOnFailure = math.MaxUint32
@@ -151,8 +149,8 @@ type Container struct {
 	RestartMaxAttempts RestartCount
 	// current retries used
 	RestartAttempts RestartCount
-	// auto restart exponential backoff delay
-	RestartBackoffDelay time.Duration
+	// auto restart exponential backoff
+	RestartBackoff *retry.ExponentialBackoff
 	// DesiredToFullyStop is true if we are forcing a container to stop due to error, so won't try to restart
 	DesiredToFullyStopWhenReceivingStopped bool
 	// DesiredToRestart is we restart container due to Docker error
@@ -928,18 +926,6 @@ func (c *Container) GetStopTimeout() time.Duration {
 	defer c.lock.Unlock()
 
 	return time.Duration(c.StopTimeout) * time.Second
-}
-
-func (c *Container) SetRestartBackoffDelay(delay time.Duration) {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-	c.RestartBackoffDelay = delay
-}
-
-func (c *Container) GetRestartBackoffDelay() time.Duration {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-	return c.RestartBackoffDelay
 }
 
 func (c *Container) SetRestartAttempts(count RestartCount) {
