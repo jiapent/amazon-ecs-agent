@@ -463,7 +463,7 @@ func TestAutoRestartNever(t *testing.T) {
 	container1.Essential = true
 
 	container2.EntryPoint = &entryPointForOS
-	container2.Command = []string{"sleep 2 && exit 1"}
+	container2.Command = []string{"sleep 2; exit 1"}
 	container2.Essential = false
 	container2.RestartPolicy = apicontainer.NEVER
 
@@ -512,7 +512,7 @@ func TestAutoRestartOnFailureExaustedAllAttempts(t *testing.T) {
 
 	var restartMaxAttempts apicontainer.RestartCount = 3
 	container2.EntryPoint = &entryPointForOS
-	container2.Command = []string{"sleep 2 && exit 1"}
+	container2.Command = []string{"sleep 2; exit 1"}
 	container2.Essential = false
 	container2.RestartPolicy = apicontainer.OnFailure
 	container2.RestartMaxAttempts = restartMaxAttempts
@@ -570,7 +570,7 @@ func TestAutoRestartOnFailureExitZero(t *testing.T) {
 
 	var restartMaxAttempts apicontainer.RestartCount = 3
 	container2.EntryPoint = &entryPointForOS
-	container2.Command = []string{"sleep 2 && exit 0"}
+	container2.Command = []string{"sleep 2; exit 0"}
 	container2.Essential = false
 	container2.RestartPolicy = apicontainer.OnFailure
 	container2.RestartMaxAttempts = restartMaxAttempts
@@ -620,7 +620,7 @@ func TestAutoRestartAlways(t *testing.T) {
 	container1.Essential = true
 
 	container2.EntryPoint = &entryPointForOS
-	container2.Command = []string{"read t < t.file && let 't=1-t' || t=0 && echo $t > t.file; exit ${t}"} // exit 0 or 1 alternately
+	container2.Command = getAlternateExitCodeCommand() // exit 0 or 1 alternately
 	container2.Essential = false
 	container2.RestartPolicy = apicontainer.Always
 
