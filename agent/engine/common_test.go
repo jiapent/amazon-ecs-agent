@@ -92,7 +92,7 @@ func verifyTaskIsRunning(stateChangeEvents <-chan statechange.Event, task *apita
 			return nil
 		}
 		if taskEvent.Status > apitaskstatus.TaskRunning {
-			return fmt.Errorf("Task went straight to %s without running, task: %s", taskEvent.Status.String(), task.Arn)
+			return fmt.Errorf("task went straight to %s without running, task: %s", taskEvent.Status.String(), task.Arn)
 		}
 	}
 }

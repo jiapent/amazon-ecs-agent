@@ -16,6 +16,7 @@
 package engine
 
 import (
+	"github.com/aws/amazon-ecs-agent/agent/api/container/status"
 	"testing"
 	"time"
 
@@ -218,12 +219,12 @@ func TestAutoRestartAlways(t *testing.T) {
 		verifyContainerRunningStateChange(t, taskEngine)
 		verifyTaskIsRunning(stateChangeEvents, testTask)
 
-		// Container2 is stopped after Container1 is stopped
+		// Wait Container2 is stopped after Container1 is stopped
 		verifyTaskIsStopped(stateChangeEvents, testTask)
 		close(finished)
 	}()
 
-	assert.True(t, container2.GetRestartAttempts() > 0, "Didn't restarted, restart attempts: " + container2.GetRestartAttempts())
-
 	waitFinished(t, finished, restartingTimeout)
+	assert.True(t, container2.GetKnownStatus() == status.ContainerStopped, "Container is not stopped.")
+	assert.True(t, container2.GetRestartAttempts() > 0, "Didn't restarted")
 }
