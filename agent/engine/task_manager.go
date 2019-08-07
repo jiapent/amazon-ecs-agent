@@ -481,7 +481,7 @@ func (mtask *managedTask) handleContainerChange(containerChange dockerContainerC
 	}
 
 	if container.GetKnownStatus() == apicontainerstatus.ContainerRunning {
-		// Reset desired to restart flag is restart success
+		// Reset desired to restart flag if restart success
 		container.DesiredToRestartWhenReceivingStopped = false
 	}
 

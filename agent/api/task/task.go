@@ -1521,11 +1521,11 @@ func (task *Task) updateContainerDesiredStatusUnsafe(taskDesiredStatus apitaskst
 	for _, container := range task.Containers {
 		taskDesiredStatusToContainerStatus := apitaskstatus.MapTaskToContainerStatus(taskDesiredStatus, container.GetSteadyStateStatus())
 		if container.GetDesiredStatus() < taskDesiredStatusToContainerStatus {
-			container.SetDesiredStatus(taskDesiredStatusToContainerStatus)
 			if taskDesiredStatusToContainerStatus == apicontainerstatus.ContainerStopped &&
 				container.IsAutoRestartNonEssentialContainer() {
 				container.DesiredToFullyStopWhenReceivingStopped = true
 			}
+			container.SetDesiredStatus(taskDesiredStatusToContainerStatus)
 		}
 	}
 }
