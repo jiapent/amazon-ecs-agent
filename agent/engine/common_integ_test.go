@@ -59,14 +59,14 @@ func verifyContainerRunningStateChange(t *testing.T, taskEngine TaskEngine) {
 	stateChangeEvents := taskEngine.StateChangeEvents()
 	event := <-stateChangeEvents
 	assert.Equal(t, event.(api.ContainerStateChange).Status, apicontainerstatus.ContainerRunning,
-		"Expected container to be RUNNING, but got: " + event.(api.ContainerStateChange).Status.String())
+		"Expected container to be RUNNING")
 }
 
 func verifyContainerStoppedStateChange(t *testing.T, taskEngine TaskEngine) {
 	stateChangeEvents := taskEngine.StateChangeEvents()
 	event := <-stateChangeEvents
 	assert.Equal(t, event.(api.ContainerStateChange).Status, apicontainerstatus.ContainerStopped,
-		"Expected container to be STOPPED, but got: " + event.(api.ContainerStateChange).Status.String())
+		"Expected container to be STOPPED")
 }
 
 func setup(cfg *config.Config, state dockerstate.TaskEngineState, t *testing.T) (TaskEngine, func(), credentials.Manager) {
