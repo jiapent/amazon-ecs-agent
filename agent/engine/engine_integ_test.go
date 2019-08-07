@@ -644,6 +644,6 @@ func TestAutoRestartAlways(t *testing.T) {
 	}()
 
 	waitFinished(t, finished, restartingTimeout)
-	assert.True(t, container2.GetKnownStatus() == status.ContainerStopped, "Container is not stopped.")
+	assert.True(t, container2.GetKnownStatus() == apicontainerstatus.ContainerStopped, "Container is not stopped.")
 	assert.True(t, container2.GetRestartAttempts() > 0, "Didn't restarted")
 }
