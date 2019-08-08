@@ -264,6 +264,11 @@ func TestOnSteadyStateIsResolved(t *testing.T) {
 		},
 		{
 			TargetDesired: apicontainerstatus.ContainerCreated,
+			RunKnown:      apicontainerstatus.ContainerRestarting,
+			Resolved:      false,
+		},
+		{
+			TargetDesired: apicontainerstatus.ContainerCreated,
 			RunKnown:      apicontainerstatus.ContainerRunning,
 			Resolved:      true,
 		},
@@ -689,6 +694,24 @@ func TestContainerOrderingCanResolve(t *testing.T) {
 	}
 }
 
+func TestContainerOrderingCanResolveForAlwaysRestartingContainer(t *testing.T) {
+	// always restarting containers should not be dependent for `SUCCESS` and `COMPLETE`
+	for _, depCond := range([]string{successCondition, completeCondition}) {
+		target := &apicontainer.Container{
+			DesiredStatusUnsafe: apicontainerstatus.ContainerRunning,
+		}
+		dep := &apicontainer.Container{
+			DesiredStatusUnsafe: apicontainerstatus.ContainerRunning,
+			KnownStatusUnsafe:   apicontainerstatus.ContainerRunning,
+			KnownExitCodeUnsafe: aws.Int(1),
+			RestartPolicy: apicontainer.Always,
+			Essential: false,
+		}
+		resolvable := containerOrderingDependenciesCanResolve(target, dep, depCond)
+		assert.Equal(t, false, resolvable)
+	}
+}
+
 func TestContainerOrderingIsResolved(t *testing.T) {
 	testcases := []struct {
 		TargetDesired       apicontainerstatus.ContainerStatus
@@ -710,6 +733,12 @@ func TestContainerOrderingIsResolved(t *testing.T) {
 			Resolved:            true,
 		},
 		{
+			TargetDesired:       apicontainerstatus.ContainerCreated,
+			DependencyKnown:     apicontainerstatus.ContainerRestarting,
+			DependencyCondition: createCondition,
+			Resolved:            true,
+		},
+		{
 			TargetDesired:       apicontainerstatus.ContainerRunning,
 			DependencyKnown:     apicontainerstatus.ContainerStopped,
 			DependencyCondition: createCondition,
@@ -734,6 +763,12 @@ func TestContainerOrderingIsResolved(t *testing.T) {
 			Resolved:            true,
 		},
 		{
+			TargetDesired:       apicontainerstatus.ContainerRunning,
+			DependencyKnown:     apicontainerstatus.ContainerRestarting,
+			DependencyCondition: createCondition,
+			Resolved:            true,
+		},
+		{
 			TargetDesired:       apicontainerstatus.ContainerCreated,
 			DependencyKnown:     apicontainerstatus.ContainerCreated,
 			DependencyCondition: startCondition,
@@ -741,6 +776,12 @@ func TestContainerOrderingIsResolved(t *testing.T) {
 		},
 		{
 			TargetDesired:       apicontainerstatus.ContainerCreated,
+			DependencyKnown:     apicontainerstatus.ContainerRestarting,
+			DependencyCondition: startCondition,
+			Resolved:            true,
+		},
+		{
+			TargetDesired:       apicontainerstatus.ContainerCreated,
 			DependencyKnown:     apicontainerstatus.ContainerRunning,
 			DependencyCondition: startCondition,
 			Resolved:            true,
@@ -779,6 +820,20 @@ func TestContainerOrderingIsResolved(t *testing.T) {
 		},
 		{
 			TargetDesired:       apicontainerstatus.ContainerRunning,
+			DependencyKnown:     apicontainerstatus.ContainerRestarting,
+			DependencyCondition: successCondition,
+			ExitCode:            0,
+			Resolved:            false,
+		},
+		{
+			TargetDesired:       apicontainerstatus.ContainerRunning,
+			DependencyKnown:     apicontainerstatus.ContainerRestarting,
+			DependencyCondition: successCondition,
+			ExitCode:            1,
+			Resolved:            false,
+		},
+		{
+			TargetDesired:       apicontainerstatus.ContainerRunning,
 			DependencyKnown:     apicontainerstatus.ContainerStopped,
 			DependencyCondition: completeCondition,
 			ExitCode:            0,
@@ -790,6 +845,20 @@ func TestContainerOrderingIsResolved(t *testing.T) {
 			DependencyCondition: completeCondition,
 			ExitCode:            1,
 			Resolved:            true,
+		},
+		{
+			TargetDesired:       apicontainerstatus.ContainerRunning,
+			DependencyKnown:     apicontainerstatus.ContainerRestarting,
+			DependencyCondition: completeCondition,
+			ExitCode:            0,
+			Resolved:            false,
+		},
+		{
+			TargetDesired:       apicontainerstatus.ContainerRunning,
+			DependencyKnown:     apicontainerstatus.ContainerRestarting,
+			DependencyCondition: completeCondition,
+			ExitCode:            1,
+			Resolved:            false,
 		},
 		{
 			TargetDesired:       apicontainerstatus.ContainerRunning,

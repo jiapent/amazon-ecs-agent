@@ -15,6 +15,8 @@ package container
 
 import (
 	"fmt"
+	"github.com/aws/amazon-ecs-agent/agent/utils/retry"
+	"math"
 	"strconv"
 	"sync"
 	"time"
@@ -66,7 +68,23 @@ const (
 
 	// TargetLogDriver is to show secret target being "LOG_DRIVER", the default will be "CONTAINER"
 	SecretTargetLogDriver = "LOG_DRIVER"
+
+	// Default RestartMaxAttempts OnFailure
+	DefaultRestartMaxAttemptsOnFailure = math.MaxUint32
 )
+
+const (
+	// not restarting at all
+	NEVER RestartPolicy = iota
+	// restarts a container if exit code is non-zero
+	OnFailure
+	// always restart container regardless of exit code and max retries
+	Always
+)
+
+type RestartPolicy int32
+
+type RestartCount uint32
 
 // DockerConfig represents additional metadata about a container to run. It's
 // remodeled from the `ecsacs` api model file. Eventually it should not exist
@@ -125,6 +143,18 @@ type Container struct {
 	Secrets []Secret `json:"secrets"`
 	// Essential denotes whether the container is essential or not
 	Essential bool
+	// RestartPolicy define in what condition will container be restarted
+	RestartPolicy RestartPolicy
+	// max restart retries if restarts 'On-Failure'
+	RestartMaxAttempts RestartCount
+	// current retries used
+	RestartAttempts RestartCount
+	// auto restart exponential backoff
+	RestartBackoff *retry.ExponentialBackoff
+	// DesiredToFullyStop is true if we are forcing a container to stop due to error, so won't try to restart
+	DesiredToFullyStopWhenReceivingStopped bool
+	// DesiredToRestart is we restart container due to Docker error
+	DesiredToRestartWhenReceivingStopped bool
 	// EntryPoint is entrypoint of the container, corresponding to docker option: --entrypoint
 	EntryPoint *[]string
 	// Environment is the environment variable set in the container
@@ -441,8 +471,9 @@ func (c *Container) IsKnownSteadyState() bool {
 
 // GetNextKnownStateProgression returns the state that the container should
 // progress to based on its `KnownState`. The progression is
-// incremental until the container reaches its steady state. From then on,
-// it transitions to `ContainerStopped`.
+// incremental until the container reaches its steady state. (The next state of
+// `ContainerCreated` and `ContainerRestarting` will both be 'ContainerRunning`.)
+// From then on, it transitions to `ContainerStopped`.
 //
 // For example:
 // a. if the steady state of the container is defined as `ContainerRunning`,
@@ -459,6 +490,10 @@ func (c *Container) IsKnownSteadyState() bool {
 func (c *Container) GetNextKnownStateProgression() apicontainerstatus.ContainerStatus {
 	if c.IsKnownSteadyState() {
 		return apicontainerstatus.ContainerStopped
+	}
+
+	if c.GetKnownStatus() == apicontainerstatus.ContainerCreated {
+		return apicontainerstatus.ContainerRunning
 	}
 
 	return c.GetKnownStatus() + 1
@@ -891,4 +926,57 @@ func (c *Container) GetStopTimeout() time.Duration {
 	defer c.lock.Unlock()
 
 	return time.Duration(c.StopTimeout) * time.Second
+}
+
+func (c *Container) SetRestartAttempts(count RestartCount) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	c.RestartAttempts = count
+}
+
+func (c *Container) GetRestartAttempts() RestartCount {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	return c.RestartAttempts
+}
+
+func (c *Container) IncrementRestartAttempts() {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	c.RestartAttempts += 1
+}
+
+func (c *Container) CanMakeRestartAttempt() bool {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	return c.RestartPolicy == Always ||
+		c.RestartPolicy == OnFailure &&
+		c.RestartAttempts < c.RestartMaxAttempts
+}
+
+func (c *Container) IsAutoRestartNonEssentialContainer() bool {
+	return !c.IsEssential() && c.RestartPolicy != NEVER
+}
+
+func (c *Container) IsDesiredToRestartWhenReceivingStopped() bool {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	defer func() {
+		c.DesiredToRestartWhenReceivingStopped = false
+	}()
+	return c.DesiredToRestartWhenReceivingStopped
+}
+
+func (c *Container) SetDesiredToRestartWhenReceivingStopped() {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	c.DesiredToRestartWhenReceivingStopped = true
+}
+
+func (c *Container) SetDefaultRestartMaxAttemptsOnFailure() {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	if c.RestartPolicy == OnFailure && c.RestartMaxAttempts == 0 {
+		c.RestartMaxAttempts = DefaultRestartMaxAttemptsOnFailure
+	}
 }

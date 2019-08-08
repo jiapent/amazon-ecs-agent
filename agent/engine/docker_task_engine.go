@@ -437,6 +437,7 @@ func (engine *DockerTaskEngine) checkTaskState(task *apitask.Task) {
 		if !ok {
 			continue
 		}
+		restartAttempts := container.GetRestartAttempts()
 		status, metadata := engine.client.DescribeContainer(engine.ctx, dockerContainer.DockerID)
 		engine.tasksLock.RLock()
 		managedTask, ok := engine.managedTasks[task.Arn]
@@ -449,8 +450,42 @@ func (engine *DockerTaskEngine) checkTaskState(task *apitask.Task) {
 					Status:                  status,
 					DockerContainerMetadata: metadata,
 				},
+				source: fromInspect,
+				containerPrevRestartAttempts: restartAttempts,
 			})
 		}
+	}
+}
+
+// checkTaskState inspects the state of input container and writes
+// its state to the managed task's container channel.
+func (engine *DockerTaskEngine) checkContainerState(container *apicontainer.Container, task *apitask.Task) {
+	taskContainers, ok := engine.state.ContainerMapByArn(task.Arn)
+	if !ok {
+		seelog.Warnf("Task engine [%s]: could not check container %s state; no task in state", task.Arn, container.Name)
+		return
+	}
+
+	dockerContainer, ok := taskContainers[container.Name]
+	if !ok {
+		return
+	}
+	restartAttempts := container.GetRestartAttempts()
+	status, metadata := engine.client.DescribeContainer(engine.ctx, dockerContainer.DockerID)
+	engine.tasksLock.RLock()
+	managedTask, ok := engine.managedTasks[task.Arn]
+	engine.tasksLock.RUnlock()
+
+	if ok {
+		managedTask.emitDockerContainerChange(dockerContainerChange{
+			container: container,
+			event: dockerapi.DockerContainerChangeEvent{
+				Status:                  status,
+				DockerContainerMetadata: metadata,
+			},
+			source: fromInspect,
+			containerPrevRestartAttempts: restartAttempts,
+		})
 	}
 }
 
@@ -619,7 +654,7 @@ func (engine *DockerTaskEngine) handleDockerEvent(event dockerapi.DockerContaine
 	}
 	seelog.Debugf("Task engine [%s]: writing docker event to the task: %s",
 		task.Arn, event.String())
-	managedTask.emitDockerContainerChange(dockerContainerChange{container: cont.Container, event: event})
+	managedTask.emitDockerContainerChange(dockerContainerChange{container: cont.Container, event: event, source: fromDockerEvent})
 	seelog.Debugf("Task engine [%s]: wrote docker event to the task: %s",
 		task.Arn, event.String())
 }
@@ -1171,6 +1206,10 @@ func (engine *DockerTaskEngine) updateTaskUnsafe(task *apitask.Task, update *api
 func (engine *DockerTaskEngine) transitionContainer(task *apitask.Task, container *apicontainer.Container, to apicontainerstatus.ContainerStatus) {
 	// Let docker events operate async so that we can continue to handle ACS / other requests
 	// This is safe because 'applyContainerState' will not mutate the task
+
+	// Get restartAttempts when making the api call, and include this in ContainerChange event, this is useful for
+	// restarting non-essential containers to check if it's a new status change.
+	restartAttempts := container.GetRestartAttempts()
 	metadata := engine.applyContainerState(task, container, to)
 
 	engine.tasksLock.RLock()
@@ -1183,6 +1222,8 @@ func (engine *DockerTaskEngine) transitionContainer(task *apitask.Task, containe
 				Status:                  to,
 				DockerContainerMetadata: metadata,
 			},
+			source: fromDockerApi,
+			containerPrevRestartAttempts: restartAttempts,
 		})
 	}
 }
