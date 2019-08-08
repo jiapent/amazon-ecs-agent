@@ -485,11 +485,6 @@ func (mtask *managedTask) handleContainerChange(containerChange dockerContainerC
 		}()
 	}
 
-	if container.GetKnownStatus() == apicontainerstatus.ContainerRunning {
-		// Reset desired to restart flag if restart success
-		container.DesiredToRestartWhenReceivingStopped = false
-	}
-
 	mtask.RecordExecutionStoppedAt(container)
 
 	seelog.Debugf("Managed task [%s]: sending container change event to tcs, container: [%s(%s)], status: %s",

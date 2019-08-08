@@ -953,8 +953,8 @@ func (c *Container) SetRestartAttempts(count RestartCount) {
 }
 
 func (c *Container) GetRestartAttempts() RestartCount {
-	c.lock.Lock()
-	defer c.lock.Unlock()
+	c.lock.RLock()
+	defer c.lock.RUnlock()
 	return c.RestartAttempts
 }
 
