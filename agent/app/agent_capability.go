@@ -46,7 +46,7 @@ const (
 	capabilityNvidiaDriverVersionInfix          = "nvidia-driver-version."
 	capabilityECREndpoint                       = "ecr-endpoint"
 	capabilityContainerOrdering                 = "container-ordering"
-	capabilityAutoRestartNonEssentialContainer = "auto-restart-noneseential-container"
+	capabilityAutoRestartNonEssentialContainer = "auto-restart-nonessential-container"
 	taskEIAAttributeSuffix                      = "task-eia"
 	taskENITrunkingAttributeSuffix              = "task-eni-trunking"
 	branchCNIPluginVersionSuffix                = "branch-cni-plugin-version"
@@ -165,7 +165,7 @@ func (agent *ecsAgent) capabilities() ([]*ecs.Attribute, error) {
 	// support elastic inference in agent
 	capabilities = agent.appendTaskEIACapabilities(capabilities)
 
-	// support auto restart non-eseential container in agent
+	// support auto restart non-essential container in agent
 	capabilities = appendNameOnlyAttribute(capabilities, attributePrefix+capabilityAutoRestartNonEssentialContainer)
 
 	return capabilities, nil
