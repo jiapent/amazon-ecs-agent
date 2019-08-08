@@ -155,9 +155,6 @@ func (agent *ecsAgent) capabilities() ([]*ecs.Attribute, error) {
 	// support container ordering in agent
 	capabilities = appendNameOnlyAttribute(capabilities, attributePrefix+capabilityContainerOrdering)
 
-	// support auto restart non-eseential container in agent
-	capabilities = appendNameOnlyAttribute(capabilities, attributePrefix+capabilityAutoRestartNonEssentialContainer)
-
 	// ecs agent version 1.22.0 supports sharing PID namespaces and IPC resource namespaces
 	// with host EC2 instance and among containers within the task
 	capabilities = agent.appendPIDAndIPCNamespaceSharingCapabilities(capabilities)
@@ -167,6 +164,9 @@ func (agent *ecsAgent) capabilities() ([]*ecs.Attribute, error) {
 
 	// support elastic inference in agent
 	capabilities = agent.appendTaskEIACapabilities(capabilities)
+
+	// support auto restart non-eseential container in agent
+	capabilities = appendNameOnlyAttribute(capabilities, attributePrefix+capabilityAutoRestartNonEssentialContainer)
 
 	return capabilities, nil
 }
