@@ -129,9 +129,6 @@ func TestCapabilities(t *testing.T) {
 			{
 				Name: aws.String(attributePrefix + capabilityContainerOrdering),
 			},
-			{
-				Name: aws.String(attributePrefix + capabilityAutoRestartNonEssentialContainer),
-			},
 		}...)
 
 	ctx, cancel := context.WithCancel(context.TODO())
