@@ -51,7 +51,7 @@ const (
 	localhost              = "127.0.0.1"
 	waitForDockerDuration  = 50 * time.Millisecond
 	removeVolumeTimeout    = 5 * time.Second
-	restartingTimeout = 60 * time.Second
+	restartingTimeout = 60 * time.Second // Used in test auto restart non-essential containers
 
 	alwaysHealthyHealthCheckConfig = `{
 			"HealthCheck":{
