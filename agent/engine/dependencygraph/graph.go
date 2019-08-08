@@ -324,10 +324,11 @@ func containerOrderingDependenciesCanResolve(target *apicontainer.Container,
 			dependencyStoppedSuccessfully = dependsOnContainer.GetKnownStatus() == apicontainerstatus.ContainerStopped &&
 				*dependsOnContainer.GetKnownExitCode() == successExitCode
 		}
-		return verifyContainerOrderingStatus(dependsOnContainer) || dependencyStoppedSuccessfully
+		return (verifyContainerOrderingStatus(dependsOnContainer) || dependencyStoppedSuccessfully) &&
+			dependsOnContainer.RestartPolicy != apicontainer.Always
 
 	case completeCondition:
-		return verifyContainerOrderingStatus(dependsOnContainer)
+		return verifyContainerOrderingStatus(dependsOnContainer) && dependsOnContainer.RestartPolicy != apicontainer.Always
 
 	case healthyCondition:
 		return verifyContainerOrderingStatus(dependsOnContainer) && dependsOnContainer.HealthStatusShouldBeReported()
@@ -356,7 +357,9 @@ func containerOrderingDependenciesIsResolved(target *apicontainer.Container,
 			// The 'target' container desires to be moved to 'Created' state.
 			// Allow this only if the known status of the linked container is
 			// 'Created' or if the dependency container is in 'steady state'
-			return dependsOnContainerKnownStatus == apicontainerstatus.ContainerCreated || dependsOnContainer.IsKnownSteadyState()
+			return dependsOnContainerKnownStatus == apicontainerstatus.ContainerCreated ||
+				dependsOnContainerKnownStatus == apicontainerstatus.ContainerRestarting ||
+				dependsOnContainer.IsKnownSteadyState()
 		} else if targetDesiredStatus == target.GetSteadyStateStatus() {
 			// The 'target' container desires to be moved to its 'steady' state.
 			// Allow this only if the dependency container is in 'steady state' as well
@@ -451,3 +454,4 @@ func onSteadyStateIsResolved(target *apicontainer.Container, run *apicontainer.C
 	return target.GetDesiredStatus() >= apicontainerstatus.ContainerCreated &&
 		run.GetKnownStatus() >= run.GetSteadyStateStatus()
 }
+

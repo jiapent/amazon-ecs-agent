@@ -167,41 +167,44 @@ func TestContainerStatsCollectionReconnection(t *testing.T) {
 	container.StopStatsCollection()
 }
 
-func TestContainerStatsCollectionStopsIfContainerIsTerminal(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	mockDockerClient := mock_dockerapi.NewMockDockerClient(ctrl)
-	resolver := mock_resolver.NewMockContainerMetadataResolver(ctrl)
+func TestContainerStatsCollectionStopsIfContainerIsRestartingOrTerminal(t *testing.T) {
+	containerStatus := []apicontainerstatus.ContainerStatus{apicontainerstatus.ContainerRestarting, apicontainerstatus.ContainerStopped}
+	for _, knownStatus := range containerStatus {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		mockDockerClient := mock_dockerapi.NewMockDockerClient(ctrl)
+		resolver := mock_resolver.NewMockContainerMetadataResolver(ctrl)
 
-	dockerID := "container1"
-	ctx, cancel := context.WithCancel(context.TODO())
+		dockerID := "container1"
+		ctx, cancel := context.WithCancel(context.TODO())
 
-	closedChan := make(chan *types.StatsJSON)
-	close(closedChan)
+		closedChan := make(chan *types.StatsJSON)
+		close(closedChan)
 
-	statsErr := fmt.Errorf("test error")
-	mockContainer := &apicontainer.DockerContainer{
-		DockerID: dockerID,
-		Container: &apicontainer.Container{
-			KnownStatusUnsafe: apicontainerstatus.ContainerStopped,
-		},
-	}
-	gomock.InOrder(
-		mockDockerClient.EXPECT().Stats(ctx, dockerID, dockerclient.StatsInactivityTimeout).Return(closedChan, nil),
-		resolver.EXPECT().ResolveContainer(dockerID).Return(mockContainer, statsErr),
-	)
-
-	container := &StatsContainer{
-		containerMetadata: &ContainerMetadata{
+		statsErr := fmt.Errorf("test error")
+		mockContainer := &apicontainer.DockerContainer{
 			DockerID: dockerID,
-		},
-		ctx:      ctx,
-		cancel:   cancel,
-		client:   mockDockerClient,
-		resolver: resolver,
-	}
-	container.StartStatsCollection()
-	select {
-	case <-ctx.Done():
+			Container: &apicontainer.Container{
+				KnownStatusUnsafe: knownStatus,
+			},
+		}
+		gomock.InOrder(
+			mockDockerClient.EXPECT().Stats(ctx, dockerID, dockerclient.StatsInactivityTimeout).Return(closedChan, nil),
+			resolver.EXPECT().ResolveContainer(dockerID).Return(mockContainer, statsErr),
+		)
+
+		container := &StatsContainer{
+			containerMetadata: &ContainerMetadata{
+				DockerID: dockerID,
+			},
+			ctx:      ctx,
+			cancel:   cancel,
+			client:   mockDockerClient,
+			resolver: resolver,
+		}
+		container.StartStatsCollection()
+		select {
+		case <-ctx.Done():
+		}
 	}
 }
