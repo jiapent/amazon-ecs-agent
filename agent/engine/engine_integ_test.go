@@ -51,7 +51,7 @@ const (
 	localhost              = "127.0.0.1"
 	waitForDockerDuration  = 50 * time.Millisecond
 	removeVolumeTimeout    = 5 * time.Second
-	restartingTimeout = 90 * time.Second
+	restartingTimeout = 60 * time.Second
 
 	alwaysHealthyHealthCheckConfig = `{
 			"HealthCheck":{
@@ -507,7 +507,7 @@ func TestAutoRestartOnFailureExaustedAllAttempts(t *testing.T) {
 	container2 := createTestContainerWithImageAndName(baseImageForOS, "container2")
 
 	container1.EntryPoint = &entryPointForOS
-	container1.Command = []string{"sleep 45"}
+	container1.Command = []string{"sleep 30"}
 	container1.Essential = true
 
 	var restartMaxAttempts apicontainer.RestartCount = 3
@@ -616,7 +616,7 @@ func TestAutoRestartAlways(t *testing.T) {
 	container2 := createTestContainerWithImageAndName(baseImageForOS, "container2")
 
 	container1.EntryPoint = &entryPointForOS
-	container1.Command = []string{"sleep 45"}
+	container1.Command = []string{"sleep 15"}
 	container1.Essential = true
 
 	container2.EntryPoint = &entryPointForOS
