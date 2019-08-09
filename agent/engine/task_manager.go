@@ -515,7 +515,8 @@ func shouldRestartContainer(container *apicontainer.Container, containerChange d
 		return false
 	}
 
-	return (container.IsDesiredToRestartWhenReceivingStopped() ||
+	return (containerChange.event.Status == apicontainerstatus.ContainerStopped &&
+		container.IsDesiredToRestartWhenReceivingStopped() ||
 		shouldRestartContainerDueToStop(container, containerChange)) &&
 			container.CanMakeRestartAttempt()
 }
