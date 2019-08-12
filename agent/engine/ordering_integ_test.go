@@ -452,7 +452,9 @@ func TestDependencyInvalidRestartPolicy(t *testing.T) {
 		dependency := createTestContainerWithImageAndName(baseImageForOS, "dependency")
 
 		dependency.Essential = false
-		dependency.RestartPolicy = apicontainer.UnlessTaskStopped
+		dependency.RestartInfo = apicontainer.RestartInfo {
+			RestartPolicy: apicontainer.UnlessTaskStopped,
+		}
 
 		parent.EntryPoint = &entryPointForOS
 		parent.Command = []string{"exit 0"}

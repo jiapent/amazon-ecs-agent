@@ -325,10 +325,10 @@ func containerOrderingDependenciesCanResolve(target *apicontainer.Container,
 				*dependsOnContainer.GetKnownExitCode() == successExitCode
 		}
 		return (verifyContainerOrderingStatus(dependsOnContainer) || dependencyStoppedSuccessfully) &&
-			dependsOnContainer.RestartPolicy != apicontainer.UnlessTaskStopped
+			dependsOnContainer.GetRestartPolicy() != apicontainer.UnlessTaskStopped
 
 	case completeCondition:
-		return verifyContainerOrderingStatus(dependsOnContainer) && dependsOnContainer.RestartPolicy != apicontainer.UnlessTaskStopped
+		return verifyContainerOrderingStatus(dependsOnContainer) && dependsOnContainer.GetRestartPolicy() != apicontainer.UnlessTaskStopped
 
 	case healthyCondition:
 		return verifyContainerOrderingStatus(dependsOnContainer) && dependsOnContainer.HealthStatusShouldBeReported()

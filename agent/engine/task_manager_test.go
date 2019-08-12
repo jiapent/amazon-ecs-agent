@@ -344,7 +344,9 @@ func TestHandleEventErrorRestartingNonEssentialContainersFromDockerAPI(t *testin
 			t.Run(tc.Name, func(t *testing.T) {
 				container := &apicontainer.Container{
 					KnownStatusUnsafe: tc.CurrentContainerKnownStatus,
-					RestartPolicy:     policy,
+					RestartInfo: &apicontainer.RestartInfo {
+						RestartPolicy: policy,
+					},
 				}
 				containerChange := DockerContainerChange{
 					container: container,

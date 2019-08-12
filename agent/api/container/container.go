@@ -110,6 +110,35 @@ type HealthStatus struct {
 	Output string `json:"output,omitempty"`
 }
 
+type RestartInfo struct {
+	// RestartPolicy define in what condition will container be restarted
+	RestartPolicy RestartPolicy
+	// max restart retries if restarts 'On-Failure'
+	RestartMaxAttempts RestartCount
+	// current retries used
+	RestartAttempts RestartCount
+	// auto restart exponential backoff
+	RestartBackoff *retry.ExponentialBackoff
+
+	// DesiredToRestartWhenReceivingStopped is true if we need to restart container due to api call(`Docker container start`) error
+	// This is  used when ever "Docker Start" has an error, in this situation we should restart the container not considering the exit code.
+	DesiredToRestartWhenReceivingStopped bool
+
+	// DesiredToFullyStopWhenReceivingStopped is true if we are forcing a container to stop due to error, so won't try to restart.
+	// This field is used in 2 situations:
+	// 1. Other Docker api calls have error, e.g. "Docker Create" has an error and we are not trying to restart it.
+	// 2. The task is stopped and every restarting container should not try to restart but drive to stop.
+	//
+	// Typically, `DesiredToRestartWhenReceivingStopped` and `DesiredToFullyStopWhenReceivingStopped` are both false
+	// if no error occurs calling Docker apis and the task is not desired to stop.
+	//
+	// An example of these two fields both being true: A container has error starting it, and we set
+	// `DesiredToRestartWhenReceivingStopped` to be true, and call Docker api to stop it. Before we receiver the "Stopped" response,
+	// an essential of the same task may be stopped, and this container's DesiredToFullyStopWhenReceivingStopped is set to be true.
+	// When the "Stopped" message come back, we are not trying to restart it.
+	DesiredToFullyStopWhenReceivingStopped bool
+}
+
 // Container is the internal representation of a container in the ECS agent
 type Container struct {
 	// Name is the name of the container specified in the task definition
@@ -145,33 +174,8 @@ type Container struct {
 	Secrets []Secret `json:"secrets"`
 	// Essential denotes whether the container is essential or not
 	Essential bool
-
-	// RestartPolicy define in what condition will container be restarted
-	RestartPolicy RestartPolicy
-	// max restart retries if restarts 'On-Failure'
-	RestartMaxAttempts RestartCount
-	// current retries used
-	RestartAttempts RestartCount
-	// auto restart exponential backoff
-	RestartBackoff *retry.ExponentialBackoff
-
-	// DesiredToRestartWhenReceivingStopped is true if we need to restart container due to api call(`Docker container start`) error
-	// This is  used when ever "Docker Start" has an error, in this situation we should restart the container not considering the exit code.
-	DesiredToRestartWhenReceivingStopped bool
-
-	// DesiredToFullyStopWhenReceivingStopped is true if we are forcing a container to stop due to error, so won't try to restart.
-	// This field is used in 2 situations:
-	// 1. Other Docker api calls have error, e.g. "Docker Create" has an error and we are not trying to restart it.
-	// 2. The task is stopped and every restarting container should not try to restart but drive to stop.
-	//
-	// Typically, `DesiredToRestartWhenReceivingStopped` and `DesiredToFullyStopWhenReceivingStopped` are both false
-	// if no error occurs calling Docker apis and the task is not desired to stop.
-	//
-	// An example of these two fields both being true: A container has error starting it, and we set
-	// `DesiredToRestartWhenReceivingStopped` to be true, and call Docker api to stop it. Before we receiver the "Stopped" response,
-	// an essential of the same task may be stopped, and this container's DesiredToFullyStopWhenReceivingStopped is set to be true.
-	// When the "Stopped" message come back, we are not trying to restart it.
-	DesiredToFullyStopWhenReceivingStopped bool
+	// Restart information for container
+	RestartInfo *RestartInfo
 
 	// EntryPoint is entrypoint of the container, corresponding to docker option: --entrypoint
 	EntryPoint *[]string
@@ -962,68 +966,124 @@ func (c *Container) GetStopTimeout() time.Duration {
 	return time.Duration(c.StopTimeout) * time.Second
 }
 
+func (c *Container) SetRestartPolicy(policy RestartPolicy) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	if c.RestartInfo != nil {
+		c.RestartInfo.RestartPolicy = policy
+	}
+}
+
+func (c *Container) GetRestartPolicy() RestartPolicy {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	if c.RestartInfo == nil {
+		return 0
+	}
+	return c.RestartInfo.RestartPolicy
+}
+
 func (c *Container) SetRestartAttempts(count RestartCount) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	c.RestartAttempts = count
+	if c.RestartInfo != nil {
+		c.RestartInfo.RestartAttempts = count
+	}
 }
 
 func (c *Container) GetRestartAttempts() RestartCount {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
-	return c.RestartAttempts
+	if c.RestartInfo == nil {
+		return 0
+	}
+	return c.RestartInfo.RestartAttempts
+}
+
+func (c *Container) SetRestartBackoff(backoff *retry.ExponentialBackoff) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	if c.RestartInfo != nil {
+		c.RestartInfo.RestartBackoff = backoff
+	}
+}
+
+func (c *Container) GetRestartBackoff() *retry.ExponentialBackoff {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	if c.RestartInfo == nil {
+		return nil
+	}
+	return c.RestartInfo.RestartBackoff
 }
 
 func (c *Container) IncrementRestartAttempts() {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	c.RestartAttempts += 1
+	if c.RestartInfo != nil {
+		c.RestartInfo.RestartAttempts += 1
+	}
 }
 
 func (c *Container) CanMakeRestartAttempt() bool {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
-	return c.RestartPolicy == UnlessTaskStopped ||
-		c.RestartPolicy == OnFailure &&
-		c.RestartAttempts < c.RestartMaxAttempts
+	if c.RestartInfo == nil {
+		return false
+	}
+	return c.RestartInfo.RestartPolicy == UnlessTaskStopped ||
+		c.RestartInfo.RestartPolicy == OnFailure &&
+		c.RestartInfo.RestartAttempts < c.RestartInfo.RestartMaxAttempts
 }
 
 func (c *Container) IsAutoRestartNonEssentialContainer() bool {
-	return !c.IsEssential() && c.RestartPolicy != Never
+	return !c.IsEssential() && c.RestartInfo != nil && c.RestartInfo.RestartPolicy != Never
 }
 
 func (c *Container) IsDesiredToRestartWhenReceivingStopped() bool {
 	c.lock.Lock()
 	defer c.lock.Unlock()
+	if c.RestartInfo == nil {
+		return false
+	}
 	defer func() {
-		c.DesiredToRestartWhenReceivingStopped = false
+		c.RestartInfo.DesiredToRestartWhenReceivingStopped = false
 	}()
-	return c.DesiredToRestartWhenReceivingStopped
+	return c.RestartInfo.DesiredToRestartWhenReceivingStopped
 }
 
 func (c *Container) IsDesiredToFullyStopWhenReceivingStopped() bool {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
-	return c.DesiredToFullyStopWhenReceivingStopped
+	if c.RestartInfo == nil {
+		return false
+	}
+	return c.RestartInfo.DesiredToFullyStopWhenReceivingStopped
 }
 
 func (c *Container) SetDesiredToFullyStopWhenReceivingStopped() {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	c.DesiredToFullyStopWhenReceivingStopped = true
+	if c.RestartInfo != nil {
+		c.RestartInfo.DesiredToFullyStopWhenReceivingStopped = true
+	}
 }
 
 func (c *Container) SetDesiredToRestartWhenReceivingStopped() {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	c.DesiredToRestartWhenReceivingStopped = true
+	if c.RestartInfo != nil {
+		c.RestartInfo.DesiredToRestartWhenReceivingStopped = true
+	}
 }
 
 func (c *Container) SetDefaultRestartMaxAttemptsOnFailure() {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	if c.RestartPolicy == OnFailure && c.RestartMaxAttempts == 0 {
-		c.RestartMaxAttempts = DefaultRestartMaxAttemptsOnFailure
+	if c.RestartInfo != nil {
+		if c.RestartInfo.RestartPolicy == OnFailure && c.RestartInfo.RestartMaxAttempts == 0 {
+			c.RestartInfo.RestartMaxAttempts = DefaultRestartMaxAttemptsOnFailure
+		}
 	}
 }
 

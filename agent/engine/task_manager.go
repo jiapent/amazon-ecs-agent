@@ -413,7 +413,7 @@ func (mtask *managedTask) handleContainerChange(containerChange DockerContainerC
 
 	event := containerChange.Event
 	seelog.Infof("Managed task [%s]: handling container change [%v](restartAttempts: %d) from source: [%s] for container [%s](restartAttempts: %d)",
-		mtask.Arn, event, containerChange.containerPrevRestartAttempts, containerChange.Source, container.Name, container.RestartAttempts)
+		mtask.Arn, event, containerChange.containerPrevRestartAttempts, containerChange.Source, container.Name, container.GetRestartAttempts())
 
 	// If this is a backwards transition stopped->running, the first time set it
 	// to be known running so it will be stopped. Subsequently ignore these backward transitions
@@ -478,8 +478,8 @@ func (mtask *managedTask) handleContainerChange(containerChange DockerContainerC
 		seelog.Infof("Managed task [%s]: need to restart due to container change [%v] for container [%s], restarting",
 			mtask.Arn, event, container.Name)
 		go func() {
-			if container.RestartBackoff != nil {
-				time.Sleep(container.RestartBackoff.Duration())
+			if container.GetRestartBackoff() != nil {
+				time.Sleep(container.GetRestartBackoff().Duration())
 			}
 			mtask.engine.transitionContainer(mtask.Task, container, apicontainerstatus.ContainerRunning)
 		}()
@@ -527,8 +527,8 @@ func ShouldRestartContainerDueToStop(container *apicontainer.Container, containe
 		(containerChange.Source == FromDockerApi ||
 			containerChange.Source == FromInspect) &&
 		containerChange.Event.Status == apicontainerstatus.ContainerStopped &&
-		(container.RestartPolicy == apicontainer.UnlessTaskStopped ||
-			container.RestartPolicy == apicontainer.OnFailure &&
+		(container.GetRestartPolicy() == apicontainer.UnlessTaskStopped ||
+			container.GetRestartPolicy() == apicontainer.OnFailure &&
 				*containerChange.Event.ExitCode != 0) &&
 		container.CanMakeRestartAttempt()
 }

@@ -1097,7 +1097,7 @@ func TestTaskFromACS(t *testing.T) {
 				Links:       []string{"link1", "link2"},
 				EntryPoint:  &[]string{"sh", "-c"},
 				Essential:   true,
-				RestartBackoff: nil,
+				RestartInfo: nil,
 				Environment: map[string]string{"key": "value"},
 				CPU:         10,
 				Memory:      100,
@@ -1444,8 +1444,10 @@ func TestTaskUpdateKnownStatusForRestartingContainer(t *testing.T) {
 			{
 				KnownStatusUnsafe: apicontainerstatus.ContainerCreated,
 				Essential: false,
-				RestartPolicy: apicontainer.OnFailure,
-				RestartAttempts: 0,
+				RestartInfo: &apicontainer.RestartInfo {
+					RestartPolicy: apicontainer.OnFailure,
+					RestartAttempts: 0,
+				},
 			},
 			{
 				KnownStatusUnsafe: apicontainerstatus.ContainerRunning,

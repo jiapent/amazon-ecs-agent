@@ -497,7 +497,9 @@ func TestAutoRestartNever(t *testing.T) {
 	container2.EntryPoint = &entryPointForOS
 	container2.Command = []string{"sleep 2; exit 1"}
 	container2.Essential = false
-	container2.RestartPolicy = apicontainer.Never
+	container2.RestartInfo = apicontainer.RestartInfo {
+		RestartPolicy: apicontainer.Never,
+	}
 
 	testTask.Containers = []*apicontainer.Container{
 		container1,
@@ -546,8 +548,10 @@ func TestAutoRestartOnFailureExaustedAllAttempts(t *testing.T) {
 	container2.EntryPoint = &entryPointForOS
 	container2.Command = []string{"sleep 2; exit 1"}
 	container2.Essential = false
-	container2.RestartPolicy = apicontainer.OnFailure
-	container2.RestartMaxAttempts = restartMaxAttempts
+	container2.RestartInfo = apicontainer.RestartInfo{
+		RestartPolicy: apicontainer.OnFailure,
+		RestartMaxAttempts: restartMaxAttempts,
+	}
 
 	testTask.Containers = []*apicontainer.Container{
 		container1,
@@ -604,8 +608,10 @@ func TestAutoRestartOnFailureExitZero(t *testing.T) {
 	container2.EntryPoint = &entryPointForOS
 	container2.Command = []string{"sleep 2; exit 0"}
 	container2.Essential = false
-	container2.RestartPolicy = apicontainer.OnFailure
-	container2.RestartMaxAttempts = restartMaxAttempts
+	container2.RestartInfo = apicontainer.RestartInfo{
+		RestartPolicy: apicontainer.OnFailure,
+		RestartMaxAttempts: restartMaxAttempts,
+	}
 
 	testTask.Containers = []*apicontainer.Container{
 		container1,
@@ -654,7 +660,9 @@ func TestAutoRestartAlways(t *testing.T) {
 	container2.EntryPoint = &entryPointForOS
 	container2.Command = getAlternateExitCodeCommand() // exit 0 or 1 alternately
 	container2.Essential = false
-	container2.RestartPolicy = apicontainer.UnlessTaskStopped
+	container2.RestartInfo = apicontainer.RestartInfo{
+		RestartPolicy: apicontainer.UnlessTaskStopped,
+	}
 
 	testTask.Containers = []*apicontainer.Container{
 		container1,
