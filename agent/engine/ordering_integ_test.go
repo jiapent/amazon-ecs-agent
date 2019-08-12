@@ -433,7 +433,6 @@ func TestShutdownOrder(t *testing.T) {
 	waitFinished(t, finished, shutdownOrderingTimeout)
 }
 
-
 // TestDependencyInvalidRestartPolicy varify container restarting `UnlessTaskStopped` should not be a dependend in case of `SUCCESS` or `COMPLETE`
 func TestDependencyInvalidRestartPolicy(t *testing.T) {
 
@@ -452,7 +451,7 @@ func TestDependencyInvalidRestartPolicy(t *testing.T) {
 		dependency := createTestContainerWithImageAndName(baseImageForOS, "dependency")
 
 		dependency.Essential = false
-		dependency.RestartInfo = &apicontainer.RestartInfo {
+		dependency.RestartInfo = &apicontainer.RestartInfo{
 			RestartPolicy: apicontainer.UnlessTaskStopped,
 		}
 

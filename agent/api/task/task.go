@@ -999,7 +999,7 @@ func (task *Task) allRestartingContainerStopped() bool {
 	for _, container := range task.Containers {
 		if container.IsAutoRestartNonEssentialContainer() &&
 			container.GetRestartAttempts() > 0 &&
-			container.GetKnownStatus() < apicontainerstatus.ContainerStopped{
+			container.GetKnownStatus() < apicontainerstatus.ContainerStopped {
 			return false
 		}
 	}

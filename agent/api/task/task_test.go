@@ -1443,9 +1443,9 @@ func TestTaskUpdateKnownStatusForRestartingContainer(t *testing.T) {
 		Containers: []*apicontainer.Container{
 			{
 				KnownStatusUnsafe: apicontainerstatus.ContainerCreated,
-				Essential: false,
-				RestartInfo: &apicontainer.RestartInfo {
-					RestartPolicy: apicontainer.OnFailure,
+				Essential:         false,
+				RestartInfo: &apicontainer.RestartInfo{
+					RestartPolicy:   apicontainer.OnFailure,
 					RestartAttempts: 0,
 				},
 			},

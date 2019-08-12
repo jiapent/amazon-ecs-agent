@@ -15,11 +15,12 @@ package container
 
 import (
 	"fmt"
-	"github.com/aws/amazon-ecs-agent/agent/utils/retry"
 	"math"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/aws/amazon-ecs-agent/agent/utils/retry"
 
 	apicontainerstatus "github.com/aws/amazon-ecs-agent/agent/api/container/status"
 	apierrors "github.com/aws/amazon-ecs-agent/agent/api/errors"
@@ -74,13 +75,13 @@ const (
 )
 
 var ContainerNextKnownStateProgressionMap = map[apicontainerstatus.ContainerStatus]apicontainerstatus.ContainerStatus{
-	apicontainerstatus.ContainerStatusNone    :    apicontainerstatus.ContainerPulled,
-	apicontainerstatus.ContainerPulled        :    apicontainerstatus.ContainerCreated,
-	apicontainerstatus.ContainerCreated       :    apicontainerstatus.ContainerRunning,
-	apicontainerstatus.ContainerRestarting    :    apicontainerstatus.ContainerRunning,
-	apicontainerstatus.ContainerRunning       :    apicontainerstatus.ContainerResourcesProvisioned,
-	apicontainerstatus.ContainerStopped       :    apicontainerstatus.ContainerZombie,
-	}
+	apicontainerstatus.ContainerStatusNone: apicontainerstatus.ContainerPulled,
+	apicontainerstatus.ContainerPulled:     apicontainerstatus.ContainerCreated,
+	apicontainerstatus.ContainerCreated:    apicontainerstatus.ContainerRunning,
+	apicontainerstatus.ContainerRestarting: apicontainerstatus.ContainerRunning,
+	apicontainerstatus.ContainerRunning:    apicontainerstatus.ContainerResourcesProvisioned,
+	apicontainerstatus.ContainerStopped:    apicontainerstatus.ContainerZombie,
+}
 
 const (
 	// not restarting at all
@@ -988,10 +989,6 @@ func (c *Container) GetRestartPolicy() RestartPolicy {
 	return c.RestartInfo.RestartPolicy
 }
 
-func (c *Container) NotRestartingUnlessTaskStopped() bool {
-	return c.GetRestartPolicy() != UnlessTaskStopped
-}
-
 func (c *Container) SetRestartAttempts(count RestartCount) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
@@ -1042,7 +1039,7 @@ func (c *Container) CanMakeRestartAttempt() bool {
 	}
 	return c.RestartInfo.RestartPolicy == UnlessTaskStopped ||
 		c.RestartInfo.RestartPolicy == OnFailure &&
-		c.RestartInfo.RestartAttempts < c.RestartInfo.RestartMaxAttempts
+			c.RestartInfo.RestartAttempts < c.RestartInfo.RestartMaxAttempts
 }
 
 func (c *Container) IsAutoRestartNonEssentialContainer() bool {
@@ -1095,4 +1092,3 @@ func (c *Container) SetDefaultRestartMaxAttemptsOnFailure() {
 		}
 	}
 }
-

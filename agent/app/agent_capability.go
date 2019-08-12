@@ -46,7 +46,7 @@ const (
 	capabilityNvidiaDriverVersionInfix          = "nvidia-driver-version."
 	capabilityECREndpoint                       = "ecr-endpoint"
 	capabilityContainerOrdering                 = "container-ordering"
-	capabilityAutoRestartNonEssentialContainer = "auto-restart-nonessential-container"
+	capabilityAutoRestartNonEssentialContainer  = "auto-restart-nonessential-container"
 	taskEIAAttributeSuffix                      = "task-eia"
 	taskENITrunkingAttributeSuffix              = "task-eni-trunking"
 	branchCNIPluginVersionSuffix                = "branch-cni-plugin-version"

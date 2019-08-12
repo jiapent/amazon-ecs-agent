@@ -60,7 +60,7 @@ const (
 	none ContainerChangeSource = iota
 	fromDockerEvent
 	FromInspect
-	FromDockerApi  // from 'Docker start container' or 'Docker stop container'
+	FromDockerApi // from 'Docker start container' or 'Docker stop container'
 )
 
 type ContainerChangeSource int32
@@ -427,7 +427,7 @@ func (mtask *managedTask) handleContainerChange(containerChange DockerContainerC
 		containerChange.Source == fromDockerEvent {
 		if event.Status == apicontainerstatus.ContainerStopped &&
 			containerKnownStatus != apicontainerstatus.ContainerRestarting &&
-				containerKnownStatus != apicontainerstatus.ContainerStopped {
+			containerKnownStatus != apicontainerstatus.ContainerStopped {
 			seelog.Infof("Managed task [%s]: container change [%v] for container [%s] is from Docker event, inspect again to double check",
 				mtask.Arn, event, container.Name)
 			go mtask.engine.checkContainerState(container, mtask.Task)
@@ -769,7 +769,6 @@ func (mtask *managedTask) handleEventError(containerChange DockerContainerChange
 			mtask.Arn, container.Name, event.Error)
 		container.SetKnownStatus(currentKnownStatus)
 		container.SetDesiredStatus(apicontainerstatus.ContainerStopped)
-
 
 		if errorName == dockerapi.DockerTimeoutErrorName || errorName == dockerapi.CannotInspectContainerErrorName {
 			// If there's an error with inspecting the container or in case of timeout error,

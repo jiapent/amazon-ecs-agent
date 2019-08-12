@@ -318,17 +318,14 @@ func containerOrderingDependenciesCanResolve(target *apicontainer.Container,
 		return false
 
 	case successCondition:
-		var dependencyStoppedSuccessfully bool
-
-		if dependsOnContainer.GetKnownExitCode() != nil {
-			dependencyStoppedSuccessfully = dependsOnContainer.GetKnownStatus() == apicontainerstatus.ContainerStopped &&
-				*dependsOnContainer.GetKnownExitCode() == successExitCode
+		if dependsOnContainer.GetRestartPolicy() == apicontainer.UnlessTaskStopped {
+			return false
 		}
-		return dependsOnContainer.NotRestartingUnlessTaskStopped() &&
-			(verifyContainerOrderingStatus(dependsOnContainer) || dependencyStoppedSuccessfully)
+
+		return verifyContainerOrderingStatus(dependsOnContainer) || conrtainerStoppedSuccess(dependsOnContainer)
 
 	case completeCondition:
-		return dependsOnContainer.NotRestartingUnlessTaskStopped() && verifyContainerOrderingStatus(dependsOnContainer)
+		return dependsOnContainer.GetRestartPolicy() != apicontainer.UnlessTaskStopped && verifyContainerOrderingStatus(dependsOnContainer)
 
 	case healthyCondition:
 		return verifyContainerOrderingStatus(dependsOnContainer) && dependsOnContainer.HealthStatusShouldBeReported()
@@ -455,3 +452,8 @@ func onSteadyStateIsResolved(target *apicontainer.Container, run *apicontainer.C
 		run.GetKnownStatus() >= run.GetSteadyStateStatus()
 }
 
+func conrtainerStoppedSuccess(c *apicontainer.Container) bool {
+	return c.GetKnownExitCode() != nil &&
+		c.GetKnownStatus() == apicontainerstatus.ContainerStopped &&
+		*c.GetKnownExitCode() == successExitCode
+}

@@ -696,7 +696,7 @@ func TestContainerOrderingCanResolve(t *testing.T) {
 
 func TestContainerOrderingCanResolveForAlwaysRestartingContainer(t *testing.T) {
 	// always restarting containers should not be dependent for `SUCCESS` and `COMPLETE`
-	for _, depCond := range([]string{successCondition, completeCondition}) {
+	for _, depCond := range []string{successCondition, completeCondition} {
 		target := &apicontainer.Container{
 			DesiredStatusUnsafe: apicontainerstatus.ContainerRunning,
 		}
@@ -704,7 +704,7 @@ func TestContainerOrderingCanResolveForAlwaysRestartingContainer(t *testing.T) {
 			DesiredStatusUnsafe: apicontainerstatus.ContainerRunning,
 			KnownStatusUnsafe:   apicontainerstatus.ContainerRunning,
 			KnownExitCodeUnsafe: aws.Int(1),
-			RestartInfo: &apicontainer.RestartInfo {
+			RestartInfo: &apicontainer.RestartInfo{
 				RestartPolicy: apicontainer.UnlessTaskStopped,
 			},
 			Essential: false,

@@ -38,7 +38,7 @@ func getLongRunningCommand() []string {
 }
 
 // getAlternateExitCodeCommand will exit alternately each time running the command by saving exit code to a file
-func getAlternateExitCodeCommand() []string{
+func getAlternateExitCodeCommand() []string {
 	return []string{"read t < t.file && let 't=1-t' || t=0; echo $t > t.file; exit $t"}
 }
 

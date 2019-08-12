@@ -16,8 +16,9 @@ package stats
 import (
 	"context"
 	"errors"
-	"github.com/aws/amazon-ecs-agent/agent/api/container/status"
 	"time"
+
+	"github.com/aws/amazon-ecs-agent/agent/api/container/status"
 
 	"github.com/aws/amazon-ecs-agent/agent/dockerclient"
 	"github.com/aws/amazon-ecs-agent/agent/dockerclient/dockerapi"
