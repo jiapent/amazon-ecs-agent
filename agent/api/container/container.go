@@ -988,6 +988,10 @@ func (c *Container) GetRestartPolicy() RestartPolicy {
 	return c.RestartInfo.RestartPolicy
 }
 
+func (c *Container) NotRestartingUnlessTaskStopped() bool {
+	return c.GetRestartPolicy() != UnlessTaskStopped
+}
+
 func (c *Container) SetRestartAttempts(count RestartCount) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
