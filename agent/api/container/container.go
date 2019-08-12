@@ -73,6 +73,15 @@ const (
 	DefaultRestartMaxAttemptsOnFailure = math.MaxInt32
 )
 
+var ContainerNextKnownStateProgressionMap = map[apicontainerstatus.ContainerStatus]apicontainerstatus.ContainerStatus{
+	apicontainerstatus.ContainerStatusNone    :    apicontainerstatus.ContainerPulled,
+	apicontainerstatus.ContainerPulled        :    apicontainerstatus.ContainerCreated,
+	apicontainerstatus.ContainerCreated       :    apicontainerstatus.ContainerRunning,
+	apicontainerstatus.ContainerRestarting    :    apicontainerstatus.ContainerRunning,
+	apicontainerstatus.ContainerRunning       :    apicontainerstatus.ContainerResourcesProvisioned,
+	apicontainerstatus.ContainerStopped       :    apicontainerstatus.ContainerZombie,
+	}
+
 const (
 	// not restarting at all
 	Never RestartPolicy = iota
@@ -514,11 +523,7 @@ func (c *Container) GetNextKnownStateProgression() apicontainerstatus.ContainerS
 		return apicontainerstatus.ContainerStopped
 	}
 
-	if c.GetKnownStatus() == apicontainerstatus.ContainerCreated {
-		return apicontainerstatus.ContainerRunning
-	}
-
-	return c.GetKnownStatus() + 1
+	return ContainerNextKnownStateProgressionMap[c.GetKnownStatus()]
 }
 
 // IsInternal returns true if the container type is `ContainerCNIPause`
