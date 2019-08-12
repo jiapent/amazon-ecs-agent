@@ -497,7 +497,7 @@ func TestAutoRestartNever(t *testing.T) {
 	container2.EntryPoint = &entryPointForOS
 	container2.Command = []string{"sleep 2; exit 1"}
 	container2.Essential = false
-	container2.RestartPolicy = apicontainer.NEVER
+	container2.RestartPolicy = apicontainer.Never
 
 	testTask.Containers = []*apicontainer.Container{
 		container1,
@@ -654,7 +654,7 @@ func TestAutoRestartAlways(t *testing.T) {
 	container2.EntryPoint = &entryPointForOS
 	container2.Command = getAlternateExitCodeCommand() // exit 0 or 1 alternately
 	container2.Essential = false
-	container2.RestartPolicy = apicontainer.Always
+	container2.RestartPolicy = apicontainer.UnlessTaskStopped
 
 	testTask.Containers = []*apicontainer.Container{
 		container1,

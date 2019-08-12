@@ -982,6 +982,8 @@ func (task *Task) getEarliestKnownTaskStatusForContainers() apitaskstatus.TaskSt
 	earliest := apitaskstatus.TaskZombie
 	for _, container := range task.Containers {
 		if !container.IsEssential() && container.GetRestartAttempts() > 0 {
+			seelog.Debugf("Restarting container: %s will not influence earliest known task status for task: %s",
+				container.String(), task.String())
 			continue
 		}
 		containerTaskStatus := apitaskstatus.MapContainerToTaskStatus(container.GetKnownStatus(), container.GetSteadyStateStatus())
@@ -1547,7 +1549,7 @@ func (task *Task) updateContainerDesiredStatusUnsafe(taskDesiredStatus apitaskst
 		if container.GetDesiredStatus() < taskDesiredStatusToContainerStatus {
 			if taskDesiredStatusToContainerStatus == apicontainerstatus.ContainerStopped &&
 				container.IsAutoRestartNonEssentialContainer() {
-				container.DesiredToFullyStopWhenReceivingStopped = true
+				container.SetDesiredToFullyStopWhenReceivingStopped()
 			}
 			container.SetDesiredStatus(taskDesiredStatusToContainerStatus)
 		}

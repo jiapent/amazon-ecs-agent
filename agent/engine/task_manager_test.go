@@ -179,9 +179,9 @@ func TestHandleEventError(t *testing.T) {
 			container := &apicontainer.Container{
 				KnownStatusUnsafe: tc.CurrentContainerKnownStatus,
 			}
-			containerChange := dockerContainerChange{
+			containerChange := DockerContainerChange{
 				container: container,
-				event: dockerapi.DockerContainerChangeEvent{
+				Event: dockerapi.DockerContainerChangeEvent{
 					Status: tc.EventStatus,
 					DockerContainerMetadata: dockerapi.DockerContainerMetadata{
 						Error: tc.Error,
@@ -340,21 +340,21 @@ func TestHandleEventErrorRestartingNonEssentialContainersFromDockerAPI(t *testin
 	}
 
 	for _, tc := range testCases {
-		for _, policy := range []apicontainer.RestartPolicy{apicontainer.Always, apicontainer.OnFailure} {
+		for _, policy := range []apicontainer.RestartPolicy{apicontainer.UnlessTaskStopped, apicontainer.OnFailure} {
 			t.Run(tc.Name, func(t *testing.T) {
 				container := &apicontainer.Container{
 					KnownStatusUnsafe: tc.CurrentContainerKnownStatus,
 					RestartPolicy:     policy,
 				}
-				containerChange := dockerContainerChange{
+				containerChange := DockerContainerChange{
 					container: container,
-					event: dockerapi.DockerContainerChangeEvent{
+					Event: dockerapi.DockerContainerChangeEvent{
 						Status: tc.EventStatus,
 						DockerContainerMetadata: dockerapi.DockerContainerMetadata{
 							Error: tc.Error,
 						},
 					},
-					source: fromDockerApi,
+					Source: FromDockerApi,
 				}
 				mtask := managedTask{
 					Task: &apitask.Task{
@@ -950,7 +950,7 @@ func TestStartContainerTransitionsInvokesHandleContainerChange(t *testing.T) {
 		},
 		stateChangeEvents:          stateChangeEvents,
 		containerChangeEventStream: containerChangeEventStream,
-		dockerMessages:             make(chan dockerContainerChange),
+		dockerMessages:             make(chan DockerContainerChange),
 	}
 
 	eventsGenerated := sync.WaitGroup{}
@@ -986,7 +986,7 @@ func TestStartContainerTransitionsInvokesHandleContainerChange(t *testing.T) {
 
 func TestWaitForContainerTransitionsForNonTerminalTask(t *testing.T) {
 	acsMessages := make(chan acsTransition)
-	dockerMessages := make(chan dockerContainerChange)
+	dockerMessages := make(chan DockerContainerChange)
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
 	task := &managedTask{
@@ -1032,7 +1032,7 @@ func TestWaitForContainerTransitionsForNonTerminalTask(t *testing.T) {
 // containers in the task are in PULLED state
 func TestWaitForContainerTransitionsForTerminalTask(t *testing.T) {
 	acsMessages := make(chan acsTransition)
-	dockerMessages := make(chan dockerContainerChange)
+	dockerMessages := make(chan DockerContainerChange)
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
 	task := &managedTask{
@@ -1147,7 +1147,7 @@ func TestHandleStoppedToSteadyStateTransition(t *testing.T) {
 		},
 		engine:         taskEngine,
 		acsMessages:    make(chan acsTransition),
-		dockerMessages: make(chan dockerContainerChange),
+		dockerMessages: make(chan DockerContainerChange),
 		saver:          taskEngine.saver,
 		ctx:            ctx,
 	}
@@ -1185,7 +1185,7 @@ func TestHandleStoppedToSteadyStateTransition(t *testing.T) {
 	waitForDockerMessageAssertions.Add(1)
 	go func() {
 		dockerMessage := <-mTask.dockerMessages
-		assert.Equal(t, apicontainerstatus.ContainerStopped, dockerMessage.event.Status,
+		assert.Equal(t, apicontainerstatus.ContainerStopped, dockerMessage.Event.Status,
 			"Mismatch in event status")
 		assert.Equal(t, firstContainerName, dockerMessage.container.Name,
 			"Mismatch in container reference in event")
@@ -1240,7 +1240,7 @@ func TestCleanupTask(t *testing.T) {
 		_time:                    mockTime,
 		engine:                   taskEngine,
 		acsMessages:              make(chan acsTransition),
-		dockerMessages:           make(chan dockerContainerChange),
+		dockerMessages:           make(chan DockerContainerChange),
 		resourceStateChangeEvent: make(chan resourceStateChange),
 		cfg:                      taskEngine.cfg,
 		saver:                    taskEngine.saver,
@@ -1301,7 +1301,7 @@ func TestCleanupTaskWaitsForStoppedSent(t *testing.T) {
 		_time:                    mockTime,
 		engine:                   taskEngine,
 		acsMessages:              make(chan acsTransition),
-		dockerMessages:           make(chan dockerContainerChange),
+		dockerMessages:           make(chan DockerContainerChange),
 		resourceStateChangeEvent: make(chan resourceStateChange),
 		cfg:                      taskEngine.cfg,
 		saver:                    taskEngine.saver,
@@ -1370,7 +1370,7 @@ func TestCleanupTaskGivesUpIfWaitingTooLong(t *testing.T) {
 		_time:          mockTime,
 		engine:         taskEngine,
 		acsMessages:    make(chan acsTransition),
-		dockerMessages: make(chan dockerContainerChange),
+		dockerMessages: make(chan DockerContainerChange),
 		cfg:            taskEngine.cfg,
 		saver:          taskEngine.saver,
 	}
@@ -1425,7 +1425,7 @@ func TestCleanupTaskENIs(t *testing.T) {
 		_time:                    mockTime,
 		engine:                   taskEngine,
 		acsMessages:              make(chan acsTransition),
-		dockerMessages:           make(chan dockerContainerChange),
+		dockerMessages:           make(chan DockerContainerChange),
 		resourceStateChangeEvent: make(chan resourceStateChange),
 		cfg:                      taskEngine.cfg,
 		saver:                    taskEngine.saver,
@@ -1555,7 +1555,7 @@ func TestCleanupTaskWithInvalidInterval(t *testing.T) {
 		_time:                    mockTime,
 		engine:                   taskEngine,
 		acsMessages:              make(chan acsTransition),
-		dockerMessages:           make(chan dockerContainerChange),
+		dockerMessages:           make(chan DockerContainerChange),
 		resourceStateChangeEvent: make(chan resourceStateChange),
 		cfg:                      taskEngine.cfg,
 		saver:                    taskEngine.saver,
@@ -1614,7 +1614,7 @@ func TestCleanupTaskWithResourceHappyPath(t *testing.T) {
 		_time:                    mockTime,
 		engine:                   taskEngine,
 		acsMessages:              make(chan acsTransition),
-		dockerMessages:           make(chan dockerContainerChange),
+		dockerMessages:           make(chan DockerContainerChange),
 		resourceStateChangeEvent: make(chan resourceStateChange),
 		cfg:                      taskEngine.cfg,
 		saver:                    taskEngine.saver,
@@ -1676,7 +1676,7 @@ func TestCleanupTaskWithResourceErrorPath(t *testing.T) {
 		_time:                    mockTime,
 		engine:                   taskEngine,
 		acsMessages:              make(chan acsTransition),
-		dockerMessages:           make(chan dockerContainerChange),
+		dockerMessages:           make(chan DockerContainerChange),
 		resourceStateChangeEvent: make(chan resourceStateChange),
 		cfg:                      taskEngine.cfg,
 		saver:                    taskEngine.saver,
@@ -1730,9 +1730,9 @@ func TestHandleContainerChangeUpdateContainerHealth(t *testing.T) {
 	container := mTask.Containers[0]
 	container.HealthCheckType = "docker"
 
-	containerChange := dockerContainerChange{
+	containerChange := DockerContainerChange{
 		container: container,
-		event: dockerapi.DockerContainerChangeEvent{
+		Event: dockerapi.DockerContainerChangeEvent{
 			Status: apicontainerstatus.ContainerRunning,
 			DockerContainerMetadata: dockerapi.DockerContainerMetadata{
 				DockerID: "dockerID",
@@ -1775,9 +1775,9 @@ func TestHandleContainerChangeUpdateMetadataRedundant(t *testing.T) {
 
 	timeNow := time.Now()
 	exitCode := exitcodes.ExitError
-	containerChange := dockerContainerChange{
+	containerChange := DockerContainerChange{
 		container: container,
-		event: dockerapi.DockerContainerChangeEvent{
+		Event: dockerapi.DockerContainerChangeEvent{
 			Status: apicontainerstatus.ContainerRunning,
 			DockerContainerMetadata: dockerapi.DockerContainerMetadata{
 				DockerID: "dockerID",

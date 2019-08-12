@@ -704,7 +704,7 @@ func TestContainerOrderingCanResolveForAlwaysRestartingContainer(t *testing.T) {
 			DesiredStatusUnsafe: apicontainerstatus.ContainerRunning,
 			KnownStatusUnsafe:   apicontainerstatus.ContainerRunning,
 			KnownExitCodeUnsafe: aws.Int(1),
-			RestartPolicy: apicontainer.Always,
+			RestartPolicy: apicontainer.UnlessTaskStopped,
 			Essential: false,
 		}
 		resolvable := containerOrderingDependenciesCanResolve(target, dep, depCond)

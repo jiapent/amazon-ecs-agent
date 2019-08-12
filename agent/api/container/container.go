@@ -70,21 +70,21 @@ const (
 	SecretTargetLogDriver = "LOG_DRIVER"
 
 	// Default RestartMaxAttempts OnFailure
-	DefaultRestartMaxAttemptsOnFailure = math.MaxUint32
+	DefaultRestartMaxAttemptsOnFailure = math.MaxInt32
 )
 
 const (
 	// not restarting at all
-	NEVER RestartPolicy = iota
+	Never RestartPolicy = iota
 	// restarts a container if exit code is non-zero
 	OnFailure
-	// always restart container regardless of exit code and max retries
-	Always
+	// always restart container regardless of exit code and max retries unless the task is stopped
+	UnlessTaskStopped
 )
 
 type RestartPolicy int32
 
-type RestartCount uint32
+type RestartCount int32
 
 // DockerConfig represents additional metadata about a container to run. It's
 // remodeled from the `ecsacs` api model file. Eventually it should not exist
@@ -145,6 +145,7 @@ type Container struct {
 	Secrets []Secret `json:"secrets"`
 	// Essential denotes whether the container is essential or not
 	Essential bool
+
 	// RestartPolicy define in what condition will container be restarted
 	RestartPolicy RestartPolicy
 	// max restart retries if restarts 'On-Failure'
@@ -153,10 +154,25 @@ type Container struct {
 	RestartAttempts RestartCount
 	// auto restart exponential backoff
 	RestartBackoff *retry.ExponentialBackoff
-	// DesiredToFullyStop is true if we are forcing a container to stop due to error, so won't try to restart
-	DesiredToFullyStopWhenReceivingStopped bool
-	// DesiredToRestart is we restart container due to Docker error
+
+	// DesiredToRestartWhenReceivingStopped is true if we need to restart container due to api call(`Docker container start`) error
+	// This is  used when ever "Docker Start" has an error, in this situation we should restart the container not considering the exit code.
 	DesiredToRestartWhenReceivingStopped bool
+
+	// DesiredToFullyStopWhenReceivingStopped is true if we are forcing a container to stop due to error, so won't try to restart.
+	// This field is used in 2 situations:
+	// 1. Other Docker api calls have error, e.g. "Docker Create" has an error and we are not trying to restart it.
+	// 2. The task is stopped and every restarting container should not try to restart but drive to stop.
+	//
+	// Typically, `DesiredToRestartWhenReceivingStopped` and `DesiredToFullyStopWhenReceivingStopped` are both false
+	// if no error occurs calling Docker apis and the task is not desired to stop.
+	//
+	// An example of these two fields both being true: A container has error starting it, and we set
+	// `DesiredToRestartWhenReceivingStopped` to be true, and call Docker api to stop it. Before we receiver the "Stopped" response,
+	// an essential of the same task may be stopped, and this container's DesiredToFullyStopWhenReceivingStopped is set to be true.
+	// When the "Stopped" message come back, we are not trying to restart it.
+	DesiredToFullyStopWhenReceivingStopped bool
+
 	// EntryPoint is entrypoint of the container, corresponding to docker option: --entrypoint
 	EntryPoint *[]string
 	// Environment is the environment variable set in the container
@@ -965,15 +981,15 @@ func (c *Container) IncrementRestartAttempts() {
 }
 
 func (c *Container) CanMakeRestartAttempt() bool {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-	return c.RestartPolicy == Always ||
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return c.RestartPolicy == UnlessTaskStopped ||
 		c.RestartPolicy == OnFailure &&
 		c.RestartAttempts < c.RestartMaxAttempts
 }
 
 func (c *Container) IsAutoRestartNonEssentialContainer() bool {
-	return !c.IsEssential() && c.RestartPolicy != NEVER
+	return !c.IsEssential() && c.RestartPolicy != Never
 }
 
 func (c *Container) IsDesiredToRestartWhenReceivingStopped() bool {
@@ -983,6 +999,18 @@ func (c *Container) IsDesiredToRestartWhenReceivingStopped() bool {
 		c.DesiredToRestartWhenReceivingStopped = false
 	}()
 	return c.DesiredToRestartWhenReceivingStopped
+}
+
+func (c *Container) IsDesiredToFullyStopWhenReceivingStopped() bool {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return c.DesiredToFullyStopWhenReceivingStopped
+}
+
+func (c *Container) SetDesiredToFullyStopWhenReceivingStopped() {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	c.DesiredToFullyStopWhenReceivingStopped = true
 }
 
 func (c *Container) SetDesiredToRestartWhenReceivingStopped() {
@@ -998,3 +1026,4 @@ func (c *Container) SetDefaultRestartMaxAttemptsOnFailure() {
 		c.RestartMaxAttempts = DefaultRestartMaxAttemptsOnFailure
 	}
 }
+

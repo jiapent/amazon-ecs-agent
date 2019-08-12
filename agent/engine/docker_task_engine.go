@@ -444,20 +444,20 @@ func (engine *DockerTaskEngine) checkTaskState(task *apitask.Task) {
 		engine.tasksLock.RUnlock()
 
 		if ok {
-			managedTask.emitDockerContainerChange(dockerContainerChange{
+			managedTask.emitDockerContainerChange(DockerContainerChange{
 				container: container,
-				event: dockerapi.DockerContainerChangeEvent{
+				Event: dockerapi.DockerContainerChangeEvent{
 					Status:                  status,
 					DockerContainerMetadata: metadata,
 				},
-				source: fromInspect,
+				Source:                       FromInspect,
 				containerPrevRestartAttempts: restartAttempts,
 			})
 		}
 	}
 }
 
-// checkTaskState inspects the state of input container and writes
+// checkContainerState inspects the state of input container and writes
 // its state to the managed task's container channel.
 func (engine *DockerTaskEngine) checkContainerState(container *apicontainer.Container, task *apitask.Task) {
 	taskContainers, ok := engine.state.ContainerMapByArn(task.Arn)
@@ -477,13 +477,13 @@ func (engine *DockerTaskEngine) checkContainerState(container *apicontainer.Cont
 	engine.tasksLock.RUnlock()
 
 	if ok {
-		managedTask.emitDockerContainerChange(dockerContainerChange{
+		managedTask.emitDockerContainerChange(DockerContainerChange{
 			container: container,
-			event: dockerapi.DockerContainerChangeEvent{
+			Event: dockerapi.DockerContainerChangeEvent{
 				Status:                  status,
 				DockerContainerMetadata: metadata,
 			},
-			source: fromInspect,
+			Source:                       FromInspect,
 			containerPrevRestartAttempts: restartAttempts,
 		})
 	}
@@ -654,7 +654,7 @@ func (engine *DockerTaskEngine) handleDockerEvent(event dockerapi.DockerContaine
 	}
 	seelog.Debugf("Task engine [%s]: writing docker event to the task: %s",
 		task.Arn, event.String())
-	managedTask.emitDockerContainerChange(dockerContainerChange{container: cont.Container, event: event, source: fromDockerEvent})
+	managedTask.emitDockerContainerChange(DockerContainerChange{container: cont.Container, Event: event, Source: fromDockerEvent})
 	seelog.Debugf("Task engine [%s]: wrote docker event to the task: %s",
 		task.Arn, event.String())
 }
@@ -1217,13 +1217,13 @@ func (engine *DockerTaskEngine) transitionContainer(task *apitask.Task, containe
 	managedTask, ok := engine.managedTasks[task.Arn]
 	engine.tasksLock.RUnlock()
 	if ok {
-		managedTask.emitDockerContainerChange(dockerContainerChange{
+		managedTask.emitDockerContainerChange(DockerContainerChange{
 			container: container,
-			event: dockerapi.DockerContainerChangeEvent{
+			Event: dockerapi.DockerContainerChangeEvent{
 				Status:                  to,
 				DockerContainerMetadata: metadata,
 			},
-			source: fromDockerApi,
+			Source:                       FromDockerApi,
 			containerPrevRestartAttempts: restartAttempts,
 		})
 	}
