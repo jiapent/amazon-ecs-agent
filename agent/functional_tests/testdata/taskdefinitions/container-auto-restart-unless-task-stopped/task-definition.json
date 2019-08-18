@@ -1,0 +1,35 @@
+{
+  "family": "ecsftest-container-auto-restart-unless-task-stopped",
+  "containerDefinitions": [
+    {
+      "name": "essential",
+      "image": "127.0.0.1:51670/busybox:latest",
+      "cpu": 0,
+      "memory": 64,
+      "essential": true,
+      "workingDirectory" : "/test",
+      "command": ["sh", "-c", "cat test.txt", "sleep 20"]
+    },
+    {
+      "name": "non-essential-unless-task-stopped",
+      "image": "127.0.0.1:51670/busybox:latest",
+      "cpu": 0,
+      "memory": 64,
+      "essential": false,
+      "restartPolicy": "UNLESS_TASK_STOPPED",
+      "command": ["sh", "-c", ,"read t < t.file && let 't=1-t' || t=0; echo $t > t.file; exit $t"],
+      "mountPoints" : [
+        {
+          "sourceVolume": "volume1",
+          "containerPath": "/test"
+        }
+      ],
+      "workingDirectory" : "/test"
+    }
+  ],
+  "volumes" : [
+    {
+      "name" : "volume1"
+    }
+  ]
+}

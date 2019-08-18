@@ -620,6 +620,17 @@ func (task *TestTask) ContainerExitcode(name string) (int, bool) {
 	return 0, false
 }
 
+func (task *TestTask) ContainerRestartAttempts(name string) (int, bool) {
+	for _, cont := range task.Containers {
+		if cont != nil && cont.Name != nil && cont.RestartInfo != nil {
+			if *cont.Name == name {
+				return int(*cont.RestartInfo.restartCurrentAttempts), true
+			}
+		}
+	}
+	return 0, false
+}
+
 func (task *TestTask) WaitRunning(timeout time.Duration) error {
 	return task.waitStatus(timeout, "RUNNING")
 }

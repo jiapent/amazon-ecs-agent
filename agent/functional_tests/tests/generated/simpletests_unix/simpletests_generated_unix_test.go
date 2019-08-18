@@ -23,8 +23,6 @@ import (
 	"os"
 	"testing"
 	"time"
-
-	. "github.com/aws/amazon-ecs-agent/agent/functional_tests/util"
 )
 
 // TestAddAndDropCapabilities checks that adding and dropping Linux capabilities work
@@ -369,6 +367,234 @@ func TestContainerOrderingTimeout(t *testing.T) {
 		defer agent.SweepTask(testTask)
 	}
 
+}
+
+// TestContainerAutoRestartNever check container not restarting
+func TestContainerAutoRestartNever(t *testing.T) {
+	// Parallel is opt in because resource constraints could cause test failures
+	// on smaller instances
+	if os.Getenv("ECS_FUNCTIONAL_PARALLEL") != "" {
+		t.Parallel()
+	}
+	var options *AgentOptions
+	if "" == "true" {
+		options = &AgentOptions{EnableTaskENI: true}
+	}
+	agent := RunAgent(t, options)
+	defer agent.Cleanup()
+
+	td, err := GetTaskDefinition("container-auto-restart-never")
+	if err != nil {
+		t.Fatalf("Could not register task definition: %v", err)
+	}
+	var testTasks []*TestTask
+	if "" == "true" {
+		for i := 0; i < 1; i++ {
+			tmpTask, err := agent.StartAWSVPCTask("container-auto-restart-never", nil)
+			if err != nil {
+				t.Fatalf("Could not start task in awsvpc mode: %v", err)
+			}
+			testTasks = append(testTasks, tmpTask)
+		}
+	} else {
+		testTasks, err = agent.StartMultipleTasks(t, td, 1)
+		if err != nil {
+			t.Fatalf("Could not start task: %v", err)
+		}
+	}
+
+	timeout, err := time.ParseDuration("2m")
+	if err != nil {
+		t.Fatalf("Could not parse timeout: %#v", err)
+	}
+
+	for _, testTask := range testTasks {
+		err = testTask.WaitStopped(timeout)
+		if err != nil {
+			t.Fatalf("Timed out waiting for task to reach stopped. Error %#v, task %#v", err, testTask)
+		}
+
+		if attempts, ok := testTask.ContainerRestartAttempts("essential"); !ok || attempts != 0 {
+			t.Errorf("Expected essential to stop without restarting; actually exited (%v) with %v", ok, attempts)
+		}
+
+		if attempts, ok := testTask.ContainerRestartAttempts("non-essential-never"); !ok || attempts != 0 {
+			t.Errorf("Expected non-essential-never to stop without restarting; actually exited (%v) with %v", ok, attempts)
+		}
+
+		defer agent.SweepTask(testTask)
+	}
+}
+
+// TestContainerAutoRestartUnlessTaskStopped check container not restarting
+func TestContainerAutoRestartUnlessTaskStopped(t *testing.T) {
+	// Parallel is opt in because resource constraints could cause test failures
+	// on smaller instances
+	if os.Getenv("ECS_FUNCTIONAL_PARALLEL") != "" {
+		t.Parallel()
+	}
+	var options *AgentOptions
+	if "" == "true" {
+		options = &AgentOptions{EnableTaskENI: true}
+	}
+	agent := RunAgent(t, options)
+	defer agent.Cleanup()
+
+	td, err := GetTaskDefinition("container-auto-restart-unless-task-stopped")
+	if err != nil {
+		t.Fatalf("Could not register task definition: %v", err)
+	}
+	var testTasks []*TestTask
+	if "" == "true" {
+		for i := 0; i < 1; i++ {
+			tmpTask, err := agent.StartAWSVPCTask("container-auto-restart-unless-task-stopped", nil)
+			if err != nil {
+				t.Fatalf("Could not start task in awsvpc mode: %v", err)
+			}
+			testTasks = append(testTasks, tmpTask)
+		}
+	} else {
+		testTasks, err = agent.StartMultipleTasks(t, td, 1)
+		if err != nil {
+			t.Fatalf("Could not start task: %v", err)
+		}
+	}
+
+	timeout, err := time.ParseDuration("2m")
+	if err != nil {
+		t.Fatalf("Could not parse timeout: %#v", err)
+	}
+
+	for _, testTask := range testTasks {
+		err = testTask.WaitStopped(timeout)
+		if err != nil {
+			t.Fatalf("Timed out waiting for task to reach stopped. Error %#v, task %#v", err, testTask)
+		}
+
+		if attempts, ok := testTask.ContainerRestartAttempts("essential"); !ok || attempts != 0 {
+			t.Errorf("Expected essential to stop without restarting; actually exited (%v) with %v", ok, attempts)
+		}
+
+		if attempts, ok := testTask.ContainerRestartAttempts("non-essential-unless-task-stopped"); !ok || attempts == 0 {
+			t.Errorf("Expected non-essential-unless-task-stopped to stop with mutiple restart attempts; actually exited (%v) with %v", ok, attempts)
+		}
+
+		defer agent.SweepTask(testTask)
+	}
+}
+
+// TestContainerAutoRestartOnFailure check container restarts when exit code is not zero until exhausted all attempts
+func TestContainerAutoRestartOnFailure(t *testing.T) {
+	// Parallel is opt in because resource constraints could cause test failures
+	// on smaller instances
+	if os.Getenv("ECS_FUNCTIONAL_PARALLEL") != "" {
+		t.Parallel()
+	}
+	var options *AgentOptions
+	if "" == "true" {
+		options = &AgentOptions{EnableTaskENI: true}
+	}
+	agent := RunAgent(t, options)
+	defer agent.Cleanup()
+
+	td, err := GetTaskDefinition("container-auto-restart-on-failure")
+	if err != nil {
+		t.Fatalf("Could not register task definition: %v", err)
+	}
+	var testTasks []*TestTask
+	if "" == "true" {
+		for i := 0; i < 1; i++ {
+			tmpTask, err := agent.StartAWSVPCTask("container-auto-restart-on-failure", nil)
+			if err != nil {
+				t.Fatalf("Could not start task in awsvpc mode: %v", err)
+			}
+			testTasks = append(testTasks, tmpTask)
+		}
+	} else {
+		testTasks, err = agent.StartMultipleTasks(t, td, 1)
+		if err != nil {
+			t.Fatalf("Could not start task: %v", err)
+		}
+	}
+
+	timeout, err := time.ParseDuration("2m")
+	if err != nil {
+		t.Fatalf("Could not parse timeout: %#v", err)
+	}
+
+	for _, testTask := range testTasks {
+		err = testTask.WaitStopped(timeout)
+		if err != nil {
+			t.Fatalf("Timed out waiting for task to reach stopped. Error %#v, task %#v", err, testTask)
+		}
+
+		if attempts, ok := testTask.ContainerRestartAttempts("essential"); !ok || attempts != 0 {
+			t.Errorf("Expected essential to stop without restarting; actually exited (%v) with %v", ok, attempts)
+		}
+
+		if attempts, ok := testTask.ContainerRestartAttempts("non-essential-on-failure"); !ok || attempts != 2 {
+			t.Errorf("Expected non-essential-on-failure to stop with 3 restart attempts; actually exited (%v) with %v", ok, attempts)
+		}
+
+		defer agent.SweepTask(testTask)
+	}
+}
+
+// TestContainerAutoRestartOnFailureInvalid check container restarts on-failure will not restart if exit successfully
+func TestContainerAutoRestartOnFailureInvalid(t *testing.T) {
+	// Parallel is opt in because resource constraints could cause test failures
+	// on smaller instances
+	if os.Getenv("ECS_FUNCTIONAL_PARALLEL") != "" {
+		t.Parallel()
+	}
+	var options *AgentOptions
+	if "" == "true" {
+		options = &AgentOptions{EnableTaskENI: true}
+	}
+	agent := RunAgent(t, options)
+	defer agent.Cleanup()
+
+	td, err := GetTaskDefinition("container-auto-restart-on-failure-invalid")
+	if err != nil {
+		t.Fatalf("Could not register task definition: %v", err)
+	}
+	var testTasks []*TestTask
+	if "" == "true" {
+		for i := 0; i < 1; i++ {
+			tmpTask, err := agent.StartAWSVPCTask("container-auto-restart-on-failure-invalid", nil)
+			if err != nil {
+				t.Fatalf("Could not start task in awsvpc mode: %v", err)
+			}
+			testTasks = append(testTasks, tmpTask)
+		}
+	} else {
+		testTasks, err = agent.StartMultipleTasks(t, td, 1)
+		if err != nil {
+			t.Fatalf("Could not start task: %v", err)
+		}
+	}
+
+	timeout, err := time.ParseDuration("2m")
+	if err != nil {
+		t.Fatalf("Could not parse timeout: %#v", err)
+	}
+
+	for _, testTask := range testTasks {
+		err = testTask.WaitStopped(timeout)
+		if err != nil {
+			t.Fatalf("Timed out waiting for task to reach stopped. Error %#v, task %#v", err, testTask)
+		}
+
+		if attempts, ok := testTask.ContainerRestartAttempts("essential"); !ok || attempts != 0 {
+			t.Errorf("Expected essential to stop without restarting; actually exited (%v) with %v", ok, attempts)
+		}
+
+		if attempts, ok := testTask.ContainerRestartAttempts("non-essential-on-failure-invalid"); !ok || attempts != 0 {
+			t.Errorf("Expected non-essential-on-failure-invalid to top without restarting; actually exited (%v) with %v", ok, attempts)
+		}
+
+		defer agent.SweepTask(testTask)
+	}
 }
 
 // TestDataVolume Check that basic data volumes work

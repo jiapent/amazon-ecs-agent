@@ -1,0 +1,35 @@
+{
+  "family": "ecsftest-container-auto-restart-never",
+  "containerDefinitions": [
+    {
+      "name": "essential",
+      "image": "127.0.0.1:51670/busybox:latest",
+      "cpu": 0,
+      "memory": 64,
+      "essential": true,
+      "workingDirectory" : "/test",
+      "command": ["sh", "-c", "cat test.txt", "sleep 20"]
+    },
+    {
+      "name": "non-essential-never",
+      "image": "127.0.0.1:51670/busybox:latest",
+      "cpu": 0,
+      "memory": 64,
+      "essential": false,
+      "restartPolicy": "NEVER",
+      "command": ["sh", "-c", "touch test.txt && echo hi >> test.txt && exit 1"],
+      "mountPoints" : [
+        {
+          "sourceVolume": "volume1",
+          "containerPath": "/test"
+        }
+      ],
+      "workingDirectory" : "/test"
+    }
+  ],
+  "volumes" : [
+    {
+      "name" : "volume1"
+    }
+  ]
+}
