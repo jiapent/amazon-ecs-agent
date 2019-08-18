@@ -288,6 +288,10 @@ type Container struct {
 
 	Essential *bool `locationName:"essential" type:"boolean"`
 
+	RestartPolicy *string `locationName:"restartPolicy" type:"string" enum:"RestartPolicy"`
+
+	RestartMaxAttempts *int64 `locationName:"restartMaxAttempts" type:"integer"`
+
 	HealthCheckType *string `locationName:"healthCheckType" type:"string" enum:"HealthCheckType"`
 
 	Image *string `locationName:"image" type:"string"`

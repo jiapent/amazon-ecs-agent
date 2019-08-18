@@ -83,13 +83,19 @@ var ContainerNextKnownStateProgressionMap = map[apicontainerstatus.ContainerStat
 	apicontainerstatus.ContainerStopped:    apicontainerstatus.ContainerZombie,
 }
 
+var RestartPolicyMap = map[string]RestartPolicy{
+	"NEVER":                 Never,
+	"UNLESS_TASK_STOPPED":   UnlessTaskStopped,
+	"ON_FAILURE":            OnFailure,
+}
+
 const (
 	// not restarting at all
 	Never RestartPolicy = iota
-	// restarts a container if exit code is non-zero
-	OnFailure
 	// always restart container regardless of exit code and max retries unless the task is stopped
 	UnlessTaskStopped
+	// restarts a container if exit code is non-zero
+	OnFailure
 )
 
 type RestartPolicy int32
@@ -201,7 +207,7 @@ type Container struct {
 	// currently it only supports 'DOCKER'
 	HealthCheckType string `json:"healthCheckType,omitempty"`
 	// Health contains the health check information of container health check
-	Health HealthStatus `json:"-"`
+	Health HealthStatus
 	// LogsAuthStrategy specifies how the logs driver for the container will be
 	// authenticated
 	LogsAuthStrategy string

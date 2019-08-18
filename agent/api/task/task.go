@@ -17,6 +17,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/aws/amazon-ecs-agent/agent/utils/retry"
 	"path/filepath"
 	"reflect"
 	"strconv"
@@ -233,12 +234,33 @@ func TaskFromACS(acsTask *ecsacs.Task, envelope *ecsacs.PayloadMessage) (*Task, 
 	}
 
 	// Overrides the container command if it's set
-	for _, container := range task.Containers {
+	for i, container := range task.Containers {
 		if (container.Overrides != apicontainer.ContainerOverrides{}) && container.Overrides.Command != nil {
 			container.Command = *container.Overrides.Command
 		}
 		container.TransitionDependenciesMap = make(map[apicontainerstatus.ContainerStatus]apicontainer.TransitionDependencySet)
 
+		if !container.Essential {
+			restartPolicy := apicontainer.Never
+			if acsTask.Containers[i].RestartPolicy != nil {
+				restartPolicy = apicontainer.RestartPolicyMap[*acsTask.Containers[i].RestartPolicy]
+			}
+			restartMaxAttempts := apicontainer.RestartCount(0)
+			if acsTask.Containers[i].RestartMaxAttempts != nil {
+				restartMaxAttempts = apicontainer.RestartCount(*acsTask.Containers[i].RestartMaxAttempts)
+			}
+
+			if restartPolicy == apicontainer.OnFailure && restartMaxAttempts == 0 {
+                restartMaxAttempts = apicontainer.DefaultRestartMaxAttemptsOnFailure
+			}
+
+			container.RestartInfo = &apicontainer.RestartInfo{
+				RestartPolicy: restartPolicy,
+				RestartMaxAttempts: restartMaxAttempts,
+				RestartBackoff:
+					retry.NewExponentialBackoff(restartBackoffMin, restartBackoffMax, restartBackoffJitter, restartBackoffMultiplier),
+			}
+		}
 		// TODO: populate restart related field from CP. and set to container
 		//if !container.Essential {
 		//	container.RestartPolicy = apicontainer.OnFailure

@@ -18,6 +18,7 @@ package task
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/aws/amazon-ecs-agent/agent/utils/retry"
 	"reflect"
 	"runtime"
 	"testing"
@@ -1039,6 +1040,19 @@ func TestTaskFromACS(t *testing.T) {
 					},
 				},
 			},
+			{
+				Name:        strptr("restartContainer"),
+				Cpu:         intptr(10),
+				Command:     []*string{strptr("command"), strptr("command2")},
+				EntryPoint:  []*string{strptr("sh"), strptr("-c")},
+				Environment: map[string]*string{"key": strptr("value")},
+				Essential:   boolptr(false),
+				RestartPolicy: strptr("ON_FAILURE"),
+				RestartMaxAttempts: intptr(5),
+				Image:       strptr("image:tag"),
+				Links:       []*string{strptr("link1"), strptr("link2")},
+				Memory:      intptr(100),
+			},
 		},
 		Volumes: []*ecsacs.Volume{
 			{
@@ -1137,6 +1151,24 @@ func TestTaskFromACS(t *testing.T) {
 						Region:    "us-west-2",
 					},
 				},
+				TransitionDependenciesMap: make(map[apicontainerstatus.ContainerStatus]apicontainer.TransitionDependencySet),
+			},
+			{
+				Name:        "restartContainer",
+				CPU:         10,
+				Command:     []string{"command", "command2"},
+				EntryPoint:  &[]string{"sh", "-c"},
+				Environment: map[string]string{"key": "value"},
+				Essential:   false,
+				RestartInfo: &apicontainer.RestartInfo{
+					RestartPolicy: apicontainer.OnFailure,
+					RestartMaxAttempts: 5,
+					RestartBackoff:
+					retry.NewExponentialBackoff(restartBackoffMin, restartBackoffMax, restartBackoffJitter, restartBackoffMultiplier),
+				},
+				Image:       "image:tag",
+				Links:       []string{"link1", "link2"},
+				Memory:      100,
 				TransitionDependenciesMap: make(map[apicontainerstatus.ContainerStatus]apicontainer.TransitionDependencySet),
 			},
 		},
