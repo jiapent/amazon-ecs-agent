@@ -4202,6 +4202,9 @@ type Container struct {
 
 	// The ARN of the task.
 	TaskArn *string `locationName:"taskArn" type:"string"`
+
+	// The current restart attempts for the container.
+	RestartCurrentAttempts *int64 `locationName:"restartCurrentAttempts" type:"integer"`
 }
 
 // String returns the string representation
