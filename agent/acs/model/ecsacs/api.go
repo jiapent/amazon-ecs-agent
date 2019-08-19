@@ -310,6 +310,10 @@ type Container struct {
 
 	RegistryAuthentication *RegistryAuthenticationData `locationName:"registryAuthentication" type:"structure"`
 
+	RestartPolicy *string `locationName:"restartPolicy" type:"string" enum:"RestartPolicy"`
+
+	RestartMaxAttempts *int64 `locationName:"restartMaxAttempts" type:"integer"`
+
 	Secrets []*Secret `locationName:"secrets" type:"list"`
 
 	StartTimeout *int64 `locationName:"startTimeout" type:"integer"`
