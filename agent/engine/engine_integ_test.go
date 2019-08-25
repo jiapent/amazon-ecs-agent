@@ -35,6 +35,7 @@ import (
 	"github.com/aws/amazon-ecs-agent/agent/dockerclient/sdkclientfactory"
 	"github.com/aws/amazon-ecs-agent/agent/engine/dockerstate"
 	taskresourcevolume "github.com/aws/amazon-ecs-agent/agent/taskresource/volume"
+	"github.com/aws/amazon-ecs-agent/agent/utils/retry"
 	"github.com/docker/docker/api/types"
 	sdkClient "github.com/docker/docker/client"
 	"github.com/stretchr/testify/assert"
@@ -367,9 +368,21 @@ func TestEngineSynchronize(t *testing.T) {
 	assert.True(t, ok, "container not found in the containers map")
 	// Task and Container restored from state file
 	containerSaved := &apicontainer.Container{
-		Name:                containerBeforeSync.Container.Name,
-		SentStatusUnsafe:    apicontainerstatus.ContainerRunning,
-		DesiredStatusUnsafe: apicontainerstatus.ContainerRunning,
+		Name:                      containerBeforeSync.Container.Name,
+		SentStatusUnsafe:          apicontainerstatus.ContainerRunning,
+		SentRestartAttemptsUnsafe: 1,
+		DesiredStatusUnsafe:       apicontainerstatus.ContainerRunning,
+		Essential:                 false,
+		RestartInfo: &apicontainer.RestartInfo{
+			RestartPolicy:      apicontainer.OnFailure,
+			RestartMaxAttempts: 5,
+			RestartAttempts:    1,
+			RestartBackoff: retry.NewExponentialBackoff(
+				apitask.RestartBackoffMin,
+				apitask.RestartBackoffMax,
+				apitask.RestartBackoffJitter,
+				apitask.RestartBackoffMultiplier),
+		},
 	}
 	task := &apitask.Task{
 		Arn: taskArn,
@@ -400,8 +413,16 @@ func TestEngineSynchronize(t *testing.T) {
 	require.Len(t, containerIDAfterSync, 1)
 	containerAfterSync, ok := state.ContainerByID(containerIDAfterSync[0])
 	assert.True(t, ok, "no container found in the agent state")
-
 	assert.Equal(t, containerAfterSync.Container.GetKnownStatus(), containerBeforeSync.Container.GetKnownStatus())
+	//assert.Equal(t, containerAfterSync.Container.GetSentStatus(), containerBeforeSync.Container.GetSentStatus())
+	//assert.Equal(t, containerAfterSync.Container.GetSentRestartAttempts(), containerBeforeSync.Container.GetSentRestartAttempts())
+	assert.NotNil(t, containerBeforeSync.Container.RestartInfo)
+	assert.Equal(t, containerAfterSync.Container.GetRestartAttempts(), containerBeforeSync.Container.GetRestartAttempts())
+	assert.Equal(t, containerAfterSync.Container.RestartInfo.RestartBackoff,
+		containerBeforeSync.Container.RestartInfo.RestartBackoff)
+	assert.Equal(t, containerAfterSync.Container.GetRestartPolicy(), containerBeforeSync.Container.GetRestartPolicy())
+	assert.Equal(t, containerAfterSync.Container.RestartInfo.RestartMaxAttempts,
+		containerBeforeSync.Container.RestartInfo.RestartMaxAttempts)
 	assert.Equal(t, containerAfterSync.Container.GetLabels(), containerBeforeSync.Container.GetLabels())
 	assert.Equal(t, containerAfterSync.Container.GetStartedAt(), containerBeforeSync.Container.GetStartedAt())
 	assert.Equal(t, containerAfterSync.Container.GetCreatedAt(), containerBeforeSync.Container.GetCreatedAt())
@@ -527,7 +548,6 @@ func TestAutoRestartNever(t *testing.T) {
 }
 
 // TestAutoRestartOnFailure is a happy-case integration test that ensure container is restarted.
-// TODO: need to be updated after auto-restart CP changes
 func TestAutoRestartOnFailureExaustedAllAttempts(t *testing.T) {
 	taskEngine, done, _ := setupWithDefaultConfig(t)
 	defer done()
@@ -571,6 +591,7 @@ func TestAutoRestartOnFailureExaustedAllAttempts(t *testing.T) {
 		// TODO: change to verify `Restarting` and `Running` change after CP changes
 		for i := 0; i < int(restartMaxAttempts); i++ {
 			verifyContainerRunningStateChange(t, taskEngine)
+			verifyContainerRestartingStateChange(t, taskEngine)
 		}
 
 		// After exhausted all retries, container2 is stopped
@@ -677,6 +698,7 @@ func TestAutoRestartAlways(t *testing.T) {
 		verifyContainerRunningStateChange(t, taskEngine)
 		verifyContainerRunningStateChange(t, taskEngine)
 		verifyTaskIsRunning(stateChangeEvents, testTask)
+		verifyContainerRestartingStateChange(t, taskEngine)
 
 		// Wait Container2 is stopped after Container1 is stopped
 		verifyTaskIsStopped(stateChangeEvents, testTask)

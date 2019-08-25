@@ -131,11 +131,11 @@ type HealthStatus struct {
 
 type RestartInfo struct {
 	// RestartPolicy define in what condition will container be restarted
-	RestartPolicy RestartPolicy
+	RestartPolicy RestartPolicy `json:"restartPolicy"`
 	// max restart retries if restarts 'On-Failure'
-	RestartMaxAttempts RestartCount
+	RestartMaxAttempts RestartCount `json:"restartMaxAttempts"`
 	// current retries used
-	RestartAttempts RestartCount
+	RestartAttempts RestartCount `json:"restartAttempts"`
 	// auto restart exponential backoff
 	RestartBackoff *retry.ExponentialBackoff
 
@@ -198,7 +198,7 @@ type Container struct {
 	// Essential denotes whether the container is essential or not
 	Essential bool
 	// Restart information for container
-	RestartInfo *RestartInfo
+	RestartInfo *RestartInfo `json:"restartInfo"`
 
 	// EntryPoint is entrypoint of the container, corresponding to docker option: --entrypoint
 	EntryPoint *[]string
@@ -285,6 +285,10 @@ type Container struct {
 	// setter/getter.  When this is done, we need to ensure that the UnmarshalJSON is
 	// handled properly so that the state storage continues to work.
 	SentStatusUnsafe apicontainerstatus.ContainerStatus `json:"SentStatus"`
+
+	// SentRestartAttemptsUnsafe represents the last restartAttempts that was sent to ECS
+	// SubmitTaskStateChange API.
+	SentRestartAttemptsUnsafe RestartCount `json:"SentRestartAttempts"`
 
 	// MetadataFileUpdated is set to true when we have completed updating the
 	// metadata file
@@ -452,6 +456,50 @@ func (c *Container) SetSentStatus(status apicontainerstatus.ContainerStatus) {
 	defer c.lock.Unlock()
 
 	c.SentStatusUnsafe = status
+}
+
+// GetSentRestartAttempts safely returns the SentRestartAttemptsUnsafe of the container
+func (c *Container) GetSentRestartAttempts() RestartCount {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return c.SentRestartAttemptsUnsafe
+}
+
+// SetSentStatus safely sets the SentStatusUnsafe of the container
+func (c *Container) SetSentRestartAttempts(restartAttempts RestartCount) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	c.SentRestartAttemptsUnsafe = restartAttempts
+}
+
+// ShouldBeSent safely returns if current status and restart attempts should be send to backend
+func (c *Container) ShouldBeSent() bool {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	if c.RestartInfo == nil {
+		return c.KnownStatusUnsafe > c.SentStatusUnsafe
+	}
+	return c.RestartInfo.RestartAttempts > c.SentRestartAttemptsUnsafe ||
+		c.RestartInfo.RestartAttempts == c.SentRestartAttemptsUnsafe &&
+			c.KnownStatusUnsafe > c.SentStatusUnsafe
+}
+
+// ShouldSendInfo safely returns if input status and restart attempts should be send to backend
+func (c *Container) ShouldSendInfo(status apicontainerstatus.ContainerStatus, restartAttempts RestartCount) bool {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return restartAttempts > c.SentRestartAttemptsUnsafe ||
+		restartAttempts == c.SentRestartAttemptsUnsafe &&
+			status > c.SentStatusUnsafe
+}
+
+// SetSendInfo safely set container status and restart attempts sent to ECS
+func (c *Container) SetSentInfo(status apicontainerstatus.ContainerStatus, restartAttempts RestartCount) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	c.SentStatusUnsafe = status
+	c.SentRestartAttemptsUnsafe = restartAttempts
 }
 
 // SetKnownExitCode sets exit code field in container struct

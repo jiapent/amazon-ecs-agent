@@ -88,6 +88,13 @@ func verifyContainerStoppedStateChangeWithRuntimeID(t *testing.T, taskEngine Tas
 		"Expected container runtimeID should not empty")
 }
 
+func verifyContainerRestartingStateChange(t *testing.T, taskEngine TaskEngine) {
+	stateChangeEvents := taskEngine.StateChangeEvents()
+	event := <-stateChangeEvents
+	assert.Equal(t, event.(api.ContainerStateChange).Status, apicontainerstatus.ContainerRestarting,
+		"Expected container to be RESTARTING")
+}
+
 func setup(cfg *config.Config, state dockerstate.TaskEngineState, t *testing.T) (TaskEngine, func(), credentials.Manager) {
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()

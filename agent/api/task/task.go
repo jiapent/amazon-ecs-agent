@@ -126,10 +126,10 @@ const (
 	// ec2ExecutionEnv specifies the ec2 execution environment.
 	ec2ExecutionEnv = "AWS_ECS_EC2"
 
-	restartBackoffMin        = 10 * time.Second
-	restartBackoffMax        = 5 * time.Minute
-	restartBackoffJitter     = 0.2
-	restartBackoffMultiplier = 1.5
+	RestartBackoffMin        = 10 * time.Second
+	RestartBackoffMax        = 5 * time.Minute
+	RestartBackoffJitter     = 0.2
+	RestartBackoffMultiplier = 1.5
 )
 
 // TaskOverrides are the overrides applied to a task
@@ -287,7 +287,12 @@ func TaskFromACS(acsTask *ecsacs.Task, envelope *ecsacs.PayloadMessage) (*Task, 
 			container.RestartInfo = &apicontainer.RestartInfo{
 				RestartPolicy:      restartPolicy,
 				RestartMaxAttempts: restartMaxAttempts,
-				RestartBackoff:     retry.NewExponentialBackoff(restartBackoffMin, restartBackoffMax, restartBackoffJitter, restartBackoffMultiplier),
+				RestartBackoff: retry.NewExponentialBackoff(
+					RestartBackoffMin,
+					RestartBackoffMax,
+					RestartBackoffJitter,
+					RestartBackoffMultiplier,
+				),
 			}
 		}
 	}

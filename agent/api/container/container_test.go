@@ -421,6 +421,207 @@ func TestShouldCreateWithASMSecret(t *testing.T) {
 	}
 }
 
+func TestShouldBeSent(t *testing.T) {
+	testCases := []struct {
+		name                string
+		knownStatus         apicontainerstatus.ContainerStatus
+		restartAttempts     RestartCount
+		sentStatus          apicontainerstatus.ContainerStatus
+		sentRestartAttempts RestartCount
+		res                 bool
+	}{
+		{
+			name:                "test 1",
+			knownStatus:         apicontainerstatus.ContainerStatusNone,
+			restartAttempts:     0,
+			sentStatus:          apicontainerstatus.ContainerStatusNone,
+			sentRestartAttempts: 0,
+			res:                 false,
+		},
+		{
+			name:                "test 2",
+			knownStatus:         apicontainerstatus.ContainerPulled,
+			restartAttempts:     0,
+			sentStatus:          apicontainerstatus.ContainerStatusNone,
+			sentRestartAttempts: 0,
+			res:                 true,
+		},
+		{
+			name:                "test 3",
+			knownStatus:         apicontainerstatus.ContainerCreated,
+			restartAttempts:     0,
+			sentStatus:          apicontainerstatus.ContainerStatusNone,
+			sentRestartAttempts: 0,
+			res:                 true,
+		},
+		{
+			name:                "test 4",
+			knownStatus:         apicontainerstatus.ContainerRestarting,
+			restartAttempts:     1,
+			sentStatus:          apicontainerstatus.ContainerStatusNone,
+			sentRestartAttempts: 0,
+			res:                 true,
+		},
+		{
+			name:                "test 5",
+			knownStatus:         apicontainerstatus.ContainerRunning,
+			restartAttempts:     0,
+			sentStatus:          apicontainerstatus.ContainerStatusNone,
+			sentRestartAttempts: 0,
+			res:                 true,
+		},
+		{
+			name:                "test 6",
+			knownStatus:         apicontainerstatus.ContainerResourcesProvisioned,
+			restartAttempts:     0,
+			sentStatus:          apicontainerstatus.ContainerStatusNone,
+			sentRestartAttempts: 0,
+			res:                 true,
+		},
+		{
+			name:                "test 7",
+			knownStatus:         apicontainerstatus.ContainerStopped,
+			restartAttempts:     0,
+			sentStatus:          apicontainerstatus.ContainerStatusNone,
+			sentRestartAttempts: 0,
+			res:                 true,
+		},
+		{
+			name:                "test 8",
+			knownStatus:         apicontainerstatus.ContainerRunning,
+			restartAttempts:     0,
+			sentStatus:          apicontainerstatus.ContainerRunning,
+			sentRestartAttempts: 0,
+			res:                 false,
+		},
+		{
+			name:                "test 9",
+			knownStatus:         apicontainerstatus.ContainerStopped,
+			restartAttempts:     0,
+			sentStatus:          apicontainerstatus.ContainerRunning,
+			sentRestartAttempts: 0,
+			res:                 true,
+		},
+		{
+			name:                "test 10",
+			knownStatus:         apicontainerstatus.ContainerRestarting,
+			restartAttempts:     1,
+			sentStatus:          apicontainerstatus.ContainerRunning,
+			sentRestartAttempts: 0,
+			res:                 true,
+		},
+		{
+			name:                "test 11",
+			knownStatus:         apicontainerstatus.ContainerRunning,
+			restartAttempts:     0,
+			sentStatus:          apicontainerstatus.ContainerRestarting,
+			sentRestartAttempts: 1,
+			res:                 false,
+		},
+		{
+			name:                "test 12",
+			knownStatus:         apicontainerstatus.ContainerStopped,
+			restartAttempts:     1,
+			sentStatus:          apicontainerstatus.ContainerRestarting,
+			sentRestartAttempts: 1,
+			res:                 true,
+		},
+	}
+	for _, tc := range testCases {
+
+		t.Run(tc.name, func(t *testing.T) {
+			c := &Container{
+				KnownStatusUnsafe: tc.knownStatus,
+				RestartInfo: &RestartInfo{
+					RestartAttempts: tc.restartAttempts,
+				},
+				SentStatusUnsafe:          tc.sentStatus,
+				SentRestartAttemptsUnsafe: tc.sentRestartAttempts,
+			}
+
+			assert.Equal(t, tc.res, c.ShouldBeSent())
+		})
+	}
+}
+
+func TestShouldSendInfo(t *testing.T) {
+	testCases := []struct {
+		name                 string
+		eventStatus          apicontainerstatus.ContainerStatus
+		eventRestartAttempts RestartCount
+		sentStatus           apicontainerstatus.ContainerStatus
+		sentRestartAttempts  RestartCount
+		res                  bool
+	}{
+		{
+			name:                 "test 1",
+			eventStatus:          apicontainerstatus.ContainerRunning,
+			eventRestartAttempts: 0,
+			sentStatus:           apicontainerstatus.ContainerStatusNone,
+			sentRestartAttempts:  0,
+			res:                  true,
+		},
+		{
+			name:                 "test 2",
+			eventStatus:          apicontainerstatus.ContainerStopped,
+			eventRestartAttempts: 0,
+			sentStatus:           apicontainerstatus.ContainerRunning,
+			sentRestartAttempts:  0,
+			res:                  true,
+		},
+		{
+			name:                 "test 3",
+			eventStatus:          apicontainerstatus.ContainerRestarting,
+			eventRestartAttempts: 1,
+			sentStatus:           apicontainerstatus.ContainerRunning,
+			sentRestartAttempts:  0,
+			res:                  true,
+		},
+		{
+			name:                 "test 4",
+			eventStatus:          apicontainerstatus.ContainerRunning,
+			eventRestartAttempts: 1,
+			sentStatus:           apicontainerstatus.ContainerRestarting,
+			sentRestartAttempts:  1,
+			res:                  true,
+		},
+		{
+			name:                 "test 5",
+			eventStatus:          apicontainerstatus.ContainerStopped,
+			eventRestartAttempts: 1,
+			sentStatus:           apicontainerstatus.ContainerRestarting,
+			sentRestartAttempts:  1,
+			res:                  true,
+		},
+		{
+			name:                 "test 6",
+			eventStatus:          apicontainerstatus.ContainerRunning,
+			eventRestartAttempts: 0,
+			sentStatus:           apicontainerstatus.ContainerRestarting,
+			sentRestartAttempts:  1,
+			res:                  false,
+		},
+		{
+			name:                 "test 7",
+			eventStatus:          apicontainerstatus.ContainerRestarting,
+			eventRestartAttempts: 1,
+			sentStatus:           apicontainerstatus.ContainerRestarting,
+			sentRestartAttempts:  2,
+			res:                  false,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := &Container{
+				SentStatusUnsafe:          tc.sentStatus,
+				SentRestartAttemptsUnsafe: tc.sentRestartAttempts,
+			}
+
+			assert.Equal(t, tc.res, c.ShouldSendInfo(tc.eventStatus, tc.eventRestartAttempts))
+		})
+	}
+}
+
 func TestHasSecret(t *testing.T) {
 	isEnvOrLogDriverSecret := func(s Secret) bool {
 		return s.Type == SecretTypeEnv || s.Target == SecretTargetLogDriver
