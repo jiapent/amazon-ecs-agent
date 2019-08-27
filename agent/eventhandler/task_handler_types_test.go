@@ -96,6 +96,7 @@ func TestShouldTaskEventBeSent(t *testing.T) {
 						},
 					},
 					{
+						Status: apicontainerstatus.ContainerStopped,
 						Container: &apicontainer.Container{
 							SentStatusUnsafe:  apicontainerstatus.ContainerRunning,
 							KnownStatusUnsafe: apicontainerstatus.ContainerStopped,
@@ -115,6 +116,7 @@ func TestShouldTaskEventBeSent(t *testing.T) {
 				},
 				Containers: []api.ContainerStateChange{
 					{
+						Status: apicontainerstatus.ContainerRunning,
 						Container: &apicontainer.Container{
 							SentStatusUnsafe:  apicontainerstatus.ContainerStatusNone,
 							KnownStatusUnsafe: apicontainerstatus.ContainerRunning,

@@ -90,7 +90,7 @@ func (event *sendableEvent) taskShouldBeSent() bool {
 	// Container event should be sent
 	for _, containerStateChange := range tevent.Containers {
 		container := containerStateChange.Container
-		if container.GetSentStatus() < container.GetKnownStatus() {
+		if container.ShouldSendInfo(containerStateChange.Status, containerStateChange.RestartAttempts) {
 			// We found a container that needs its state
 			// change to be sent to ECS.
 			return true
@@ -120,7 +120,8 @@ func (event *sendableEvent) containerShouldBeSent() bool {
 		return false
 	}
 	cevent := event.containerChange
-	if event.containerSent || (cevent.Container != nil && cevent.Container.GetSentStatus() >= cevent.Status) {
+	if event.containerSent ||
+		(cevent.Container != nil && cevent.Container.ShouldSendInfo(cevent.Status, cevent.RestartAttempts)) {
 		return false
 	}
 	return true
@@ -188,9 +189,10 @@ type setStatusSent func(event *sendableEvent)
 // setContainerChangeSent sets the event's container change object as sent
 func setContainerChangeSent(event *sendableEvent) {
 	containerChangeStatus := event.containerChange.Status
+	containerChangeRestartAttempts := event.containerChange.RestartAttempts
 	container := event.containerChange.Container
-	if container != nil && container.GetSentStatus() < containerChangeStatus {
-		container.SetSentStatus(containerChangeStatus)
+	if container != nil && container.ShouldSendInfo(containerChangeStatus, containerChangeRestartAttempts) {
+		container.SetSentInfo(containerChangeStatus, containerChangeRestartAttempts)
 	}
 }
 
@@ -204,8 +206,9 @@ func setTaskChangeSent(event *sendableEvent) {
 	for _, containerStateChange := range event.taskChange.Containers {
 		container := containerStateChange.Container
 		containerChangeStatus := containerStateChange.Status
-		if container.GetSentStatus() < containerChangeStatus {
-			container.SetSentStatus(containerStateChange.Status)
+		containerChangeRestartAttempts := containerStateChange.RestartAttempts
+		if container.ShouldSendInfo(containerChangeStatus, containerChangeRestartAttempts) {
+			container.SetSentInfo(containerChangeStatus, containerChangeRestartAttempts)
 		}
 	}
 }

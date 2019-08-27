@@ -40,6 +40,8 @@ type ContainerStateChange struct {
 	ContainerName string
 	// Status is the status to send
 	Status apicontainerstatus.ContainerStatus
+	// RestartAttempts is the current restart attempt of the container
+	RestartAttempts apicontainer.RestartCount
 
 	// Reason may contain details of why the container stopped
 	Reason string
@@ -128,24 +130,26 @@ func NewContainerStateChangeEvent(task *apitask.Task, cont *apicontainer.Contain
 			"create container state change event api: internal container: %s",
 			cont.Name)
 	}
-	if cont.GetSentStatus() >= contKnownStatus {
+	if !cont.ShouldBeSent() {
 		return event, errors.Errorf(
-			"create container state change event api: status [%s] already sent for container %s, task %s",
-			contKnownStatus.String(), cont.Name, task.Arn)
+			"create container state change event api: status [%s] with restart attempts [%d] already sent for container %s, task %s",
+			contKnownStatus.String(), cont.GetRestartAttempts(), cont.Name, task.Arn)
 	}
 
 	if reason == "" && cont.ApplyingError != nil {
 		reason = cont.ApplyingError.Error()
 	}
+
 	event = ContainerStateChange{
-		TaskArn:       task.Arn,
-		ContainerName: cont.Name,
-		RuntimeID:     cont.GetRuntimeID(),
-		Status:        contKnownStatus.BackendStatus(cont.GetSteadyStateStatus()),
-		ExitCode:      cont.GetKnownExitCode(),
-		PortBindings:  cont.GetKnownPortBindings(),
-		Reason:        reason,
-		Container:     cont,
+		TaskArn:         task.Arn,
+		ContainerName:   cont.Name,
+		RuntimeID:       cont.GetRuntimeID(),
+		Status:          contKnownStatus.BackendStatus(cont.GetSteadyStateStatus()),
+		RestartAttempts: cont.GetRestartAttempts(),
+		ExitCode:        cont.GetKnownExitCode(),
+		PortBindings:    cont.GetKnownPortBindings(),
+		Reason:          reason,
+		Container:       cont,
 	}
 
 	return event, nil
@@ -160,7 +164,7 @@ func NewAttachmentStateChangeEvent(eniAttachment *apieni.ENIAttachment) Attachme
 
 // String returns a human readable string representation of this object
 func (c *ContainerStateChange) String() string {
-	res := fmt.Sprintf("%s %s -> %s", c.TaskArn, c.ContainerName, c.Status.String())
+	res := fmt.Sprintf("%s %s (%d restart attempts) -> %s", c.TaskArn, c.ContainerName, c.RestartAttempts, c.Status.String())
 	if c.ExitCode != nil {
 		res += ", Exit " + strconv.Itoa(*c.ExitCode) + ", "
 	}
@@ -171,7 +175,8 @@ func (c *ContainerStateChange) String() string {
 		res += fmt.Sprintf(", Ports %v", c.PortBindings)
 	}
 	if c.Container != nil {
-		res += ", Known Sent: " + c.Container.GetSentStatus().String()
+		res += ", Known Sent: " + c.Container.GetSentStatus().String() +
+			" with restart attempts: " + strconv.FormatInt(int64(c.Container.GetRestartAttempts()), 10)
 	}
 	return res
 }

@@ -25,6 +25,8 @@ const (
 	ContainerPulled
 	// ContainerCreated represents a container that has been created
 	ContainerCreated
+	// ContainerRestarting represents a container is waiting to be restarted
+	ContainerRestarting
 	// ContainerRunning represents a container that has started
 	ContainerRunning
 	// ContainerResourcesProvisioned represents a container that has completed provisioning all of its
@@ -59,6 +61,7 @@ var containerStatusMap = map[string]ContainerStatus{
 	"NONE":                  ContainerStatusNone,
 	"PULLED":                ContainerPulled,
 	"CREATED":               ContainerCreated,
+	"RESTARTING":            ContainerRestarting,
 	"RUNNING":               ContainerRunning,
 	"RESOURCES_PROVISIONED": ContainerResourcesProvisioned,
 	"STOPPED":               ContainerStopped,
@@ -95,7 +98,7 @@ func (cs ContainerStatus) String() string {
 // valid state by ECS. Note that not all container statuses are recognized by ECS
 // or map to ECS states
 func (cs *ContainerStatus) ShouldReportToBackend(steadyStateStatus ContainerStatus) bool {
-	return *cs == steadyStateStatus || *cs == ContainerStopped
+	return *cs == steadyStateStatus || *cs == ContainerRestarting || *cs == ContainerStopped
 }
 
 // BackendStatus maps the internal container status in the agent to that in the
@@ -103,6 +106,10 @@ func (cs *ContainerStatus) ShouldReportToBackend(steadyStateStatus ContainerStat
 func (cs *ContainerStatus) BackendStatus(steadyStateStatus ContainerStatus) ContainerStatus {
 	if *cs == steadyStateStatus {
 		return ContainerRunning
+	}
+
+	if *cs == ContainerRestarting {
+		return ContainerRestarting
 	}
 
 	if *cs == ContainerStopped {

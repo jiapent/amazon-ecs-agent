@@ -250,7 +250,7 @@ func (manager *basicStateManager) ForceSave() error {
 	log.Info("Saving state!")
 	s := manager.state
 	s.Version = ECSDataVersion
-
+	log.Info("====> ", s)
 	data, err := json.Marshal(s)
 	if err != nil {
 		log.Error("Error saving state; could not marshal data; this is odd", "err", err)

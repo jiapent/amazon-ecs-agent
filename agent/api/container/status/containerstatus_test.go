@@ -39,6 +39,10 @@ func TestShouldReportToBackend(t *testing.T) {
 	assert.False(t, containerStatus.ShouldReportToBackend(ContainerRunning))
 	assert.False(t, containerStatus.ShouldReportToBackend(ContainerResourcesProvisioned))
 
+	// ContainerRestarting is reported to backend
+	containerStatus = ContainerRestarting
+	assert.True(t, containerStatus.ShouldReportToBackend(ContainerRunning))
+
 	containerStatus = ContainerRunning
 	// ContainerRunning is reported to backend if the steady state is RUNNING as well
 	assert.True(t, containerStatus.ShouldReportToBackend(ContainerRunning))
@@ -50,11 +54,14 @@ func TestShouldReportToBackend(t *testing.T) {
 	// is RESOURCES_PROVISIONED
 	assert.True(t, containerStatus.ShouldReportToBackend(ContainerResourcesProvisioned))
 
-	// ContainerStopped is not reported to backend
+	// ContainerStopped is reported to backend
 	containerStatus = ContainerStopped
 	assert.True(t, containerStatus.ShouldReportToBackend(ContainerRunning))
 	assert.True(t, containerStatus.ShouldReportToBackend(ContainerResourcesProvisioned))
 
+	// ContainerRestarting can only happen when steady state is ContainerRunning and is reported to backend
+	containerStatus = ContainerRestarting
+	assert.True(t, containerStatus.ShouldReportToBackend(ContainerRunning))
 }
 
 func TestBackendStatus(t *testing.T) {
@@ -90,6 +97,10 @@ func TestBackendStatus(t *testing.T) {
 	containerStatus = ContainerStopped
 	assert.Equal(t, containerStatus.BackendStatus(ContainerRunning), ContainerStopped)
 	assert.Equal(t, containerStatus.BackendStatus(ContainerResourcesProvisioned), ContainerStopped)
+
+	// BackendStatus is ContainerRestarting when container status is reported
+	containerStatus = ContainerRestarting
+	assert.Equal(t, containerStatus.BackendStatus(ContainerRunning), ContainerRestarting)
 }
 
 type testContainerStatus struct {
@@ -114,6 +125,14 @@ func TestUnmarshalContainerStatus(t *testing.T) {
 	}
 	if test.SomeStatus != ContainerStopped {
 		t.Error("STOPPED should unmarshal to STOPPED, not " + test.SomeStatus.String())
+	}
+
+	err = json.Unmarshal([]byte(`{"status":"RESTARTING"}`), &test)
+	if err != nil {
+		t.Error(err)
+	}
+	if test.SomeStatus != ContainerRestarting {
+		t.Error("RESTARTING should unmarshal to RESTARTING, not " + test.SomeStatus.String())
 	}
 }
 
