@@ -46,7 +46,7 @@ const (
 	capabilityNvidiaDriverVersionInfix          = "nvidia-driver-version."
 	capabilityECREndpoint                       = "ecr-endpoint"
 	capabilityContainerOrdering                 = "container-ordering"
-	capabilityAutoRestartNonEssentialContainer  = "auto-restart-nonessential-container"
+	capabilityAutoRestartNonEssentialContainers = "auto-restart-non-essential-containers"
 	taskEIAAttributeSuffix                      = "task-eia"
 	taskEIAWithOptimizedCPU                     = "task-eia.optimized-cpu"
 	taskENITrunkingAttributeSuffix              = "task-eni-trunking"
@@ -183,7 +183,7 @@ func (agent *ecsAgent) capabilities() ([]*ecs.Attribute, error) {
 	capabilities = agent.appendFirelensLoggingDriverCapabilities(capabilities)
 
 	// support auto restart non-essential container in agent
-	capabilities = appendNameOnlyAttribute(capabilities, attributePrefix+capabilityAutoRestartNonEssentialContainer)
+	capabilities = appendNameOnlyAttribute(capabilities, attributePrefix+capabilityAutoRestartNonEssentialContainers)
 
 	return capabilities, nil
 }

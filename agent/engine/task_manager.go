@@ -65,6 +65,13 @@ const (
 
 type ContainerChangeSource int32
 
+var containerChangeSourceMap = map[ContainerChangeSource]string{
+	none:            "NONE",
+	fromDockerEvent: "FROM_DOCKER_EVENT",
+	fromInspect:     "FROM_INSPECT",
+	fromDockerApi:   "FROM_DOCKER_API",
+}
+
 var (
 	_stoppedSentWaitInterval       = stoppedSentWaitInterval
 	_maxStoppedWaitTimes           = int(maxStoppedWaitTimes)
@@ -77,8 +84,8 @@ type acsTaskUpdate struct {
 
 type dockerContainerChange struct {
 	container *apicontainer.Container
-	Event     dockerapi.DockerContainerChangeEvent
-	Source    ContainerChangeSource
+	event     dockerapi.DockerContainerChangeEvent
+	source    ContainerChangeSource
 	// restartAttempts count when making Docker Api calls, 0 for Docker events
 	containerPrevRestartAttempts apicontainer.RestartCount
 }
@@ -359,7 +366,7 @@ func (mtask *managedTask) waitEvent(stopWaiting <-chan struct{}) bool {
 		return false
 	case dockerChange := <-mtask.dockerMessages:
 		seelog.Infof("Managed task [%s]: got container [%s] event: [%s]",
-			mtask.Arn, dockerChange.container.Name, dockerChange.Event.Status.String())
+			mtask.Arn, dockerChange.container.Name, dockerChange.event.Status.String())
 		mtask.handleContainerChange(dockerChange)
 		return false
 	case resChange := <-mtask.resourceStateChangeEvent:
@@ -411,9 +418,10 @@ func (mtask *managedTask) handleContainerChange(containerChange dockerContainerC
 		return
 	}
 
-	event := containerChange.Event
-	seelog.Infof("Managed task [%s]: handling container change [%v](restartAttempts: %d) from source: [%s] for container [%s](restartAttempts: %d)",
-		mtask.Arn, event, containerChange.containerPrevRestartAttempts, containerChange.Source, container.Name, container.GetRestartAttempts())
+	event := containerChange.event
+	seelog.Infof("Managed task [%s]: handling container change [%s](restartAttempts: %d) from source: [%s] for container [%s](restartAttempts: %d)",
+		mtask.Arn, event.Status.String(), containerChange.containerPrevRestartAttempts, containerChangeSourceMap[containerChange.source],
+		container.Name, container.GetRestartAttempts())
 
 	// If this is a backwards transition stopped->running, the first time set it
 	// to be known running so it will be stopped. Subsequently ignore these backward transitions
@@ -424,12 +432,12 @@ func (mtask *managedTask) handleContainerChange(containerChange dockerContainerC
 
 	// If this is a stop event for non-essential restarting container, we'll do a inspect to double check.
 	if container.IsAutoRestartNonEssentialContainer() &&
-		containerChange.Source == fromDockerEvent {
+		containerChange.source == fromDockerEvent {
 		if event.Status == apicontainerstatus.ContainerStopped &&
 			containerKnownStatus != apicontainerstatus.ContainerRestarting &&
 			containerKnownStatus != apicontainerstatus.ContainerStopped {
-			seelog.Infof("Managed task [%s]: container change [%v] for container [%s] is from Docker event, inspect again to double check",
-				mtask.Arn, event, container.Name)
+			seelog.Infof("Managed task [%s]: container change [%s] for container [%s] is from Docker event, inspect again to double check",
+				mtask.Arn, event.Status.String(), container.Name)
 			go mtask.engine.checkContainerState(container, mtask.Task)
 			return
 		} else if event.Status == apicontainerstatus.ContainerRunning {
@@ -475,8 +483,8 @@ func (mtask *managedTask) handleContainerChange(containerChange dockerContainerC
 
 	if needRestart {
 		container.IncrementRestartAttempts()
-		seelog.Infof("Managed task [%s]: need to restart due to container change [%v] for container [%s], restarting",
-			mtask.Arn, event, container.Name)
+		seelog.Infof("Managed task [%s]: need to restart due to container change [%s] for container [%s], restarting",
+			mtask.Arn, event.Status.String(), container.Name)
 		go func() {
 			if container.GetRestartBackoff() != nil {
 				time.Sleep(container.GetRestartBackoff().Duration())
@@ -515,7 +523,7 @@ func shouldRestartContainer(container *apicontainer.Container, containerChange d
 		return false
 	}
 
-	return (containerChange.Event.Status == apicontainerstatus.ContainerStopped &&
+	return (containerChange.event.Status == apicontainerstatus.ContainerStopped &&
 		container.IsForceRestart() ||
 		ShouldRestartContainerDueToStop(container, containerChange)) &&
 		container.CanMakeRestartAttempt()
@@ -524,12 +532,12 @@ func shouldRestartContainer(container *apicontainer.Container, containerChange d
 // check `Stopped` message is consistent with restart policy
 func ShouldRestartContainerDueToStop(container *apicontainer.Container, containerChange dockerContainerChange) bool {
 	return container.IsAutoRestartNonEssentialContainer() &&
-		(containerChange.Source == fromDockerApi ||
-			containerChange.Source == fromInspect) &&
-		containerChange.Event.Status == apicontainerstatus.ContainerStopped &&
+		(containerChange.source == fromDockerApi ||
+			containerChange.source == fromInspect) &&
+		containerChange.event.Status == apicontainerstatus.ContainerStopped &&
 		(container.GetRestartPolicy() == apicontainer.UnlessTaskStopped ||
 			container.GetRestartPolicy() == apicontainer.OnFailure &&
-				*containerChange.Event.ExitCode != 0) &&
+				*containerChange.event.ExitCode != 0) &&
 		container.CanMakeRestartAttempt()
 }
 
@@ -670,7 +678,7 @@ func (mtask *managedTask) releaseIPInIPAM() {
 func (mtask *managedTask) handleStoppedToRunningContainerTransition(status apicontainerstatus.ContainerStatus, container *apicontainer.Container) {
 	containerKnownStatus := container.GetKnownStatus()
 	if status > containerKnownStatus {
-		// Event status is greater than container's known status.
+		// event status is greater than container's known status.
 		// This is not a backward transition, return
 		return
 	}
@@ -698,7 +706,7 @@ func (mtask *managedTask) handleStoppedToRunningContainerTransition(status apico
 // we should proceed to transition the container
 func (mtask *managedTask) handleEventError(containerChange dockerContainerChange, currentKnownStatus apicontainerstatus.ContainerStatus) bool {
 	container := containerChange.container
-	event := containerChange.Event
+	event := containerChange.event
 	if container.ApplyingError == nil {
 		container.ApplyingError = apierrors.NewNamedError(event.Error)
 	}
@@ -970,16 +978,22 @@ func (mtask *managedTask) startContainerTransitions(transitionFunc containerTran
 			go func(cont *apicontainer.Container, status apicontainerstatus.ContainerStatus) {
 				mtask.dockerMessages <- dockerContainerChange{
 					container: cont,
-					Event: dockerapi.DockerContainerChangeEvent{
+					event: dockerapi.DockerContainerChangeEvent{
 						Status: status,
 					},
-					Source:                       none,
+					source:                       none,
 					containerPrevRestartAttempts: cont.GetRestartAttempts(),
 				}
 			}(cont, transition.nextState)
 			continue
 		}
 		transitions[cont.Name] = transition.nextState
+
+		// Skip restarting containers since they are scheduled to start once received stopped status, so
+		// no actions needed here
+		if cont.GetKnownStatus() == apicontainerstatus.ContainerRestarting {
+			continue
+		}
 		go transitionFunc(cont, transition.nextState)
 	}
 

@@ -252,6 +252,7 @@ func TaskFromACS(acsTask *ecsacs.Task, envelope *ecsacs.PayloadMessage) (*Task, 
 	if err != nil {
 		return nil, err
 	}
+
 	task := &Task{}
 	err = json.Unmarshal(data, task)
 	if err != nil {
@@ -1817,11 +1818,11 @@ func (task *Task) updateContainerDesiredStatusUnsafe(taskDesiredStatus apitaskst
 	for _, container := range task.Containers {
 		taskDesiredStatusToContainerStatus := apitaskstatus.MapTaskToContainerStatus(taskDesiredStatus, container.GetSteadyStateStatus())
 		if container.GetDesiredStatus() < taskDesiredStatusToContainerStatus {
+			container.SetDesiredStatus(taskDesiredStatusToContainerStatus)
 			if taskDesiredStatusToContainerStatus == apicontainerstatus.ContainerStopped &&
 				container.IsAutoRestartNonEssentialContainer() {
 				container.SetForceStop()
 			}
-			container.SetDesiredStatus(taskDesiredStatusToContainerStatus)
 		}
 	}
 }

@@ -208,7 +208,7 @@ func (engine *DockerStatsEngine) waitToStop() {
 	ctx := engine.containerChangeEventStream.Context()
 	select {
 	case <-ctx.Done():
-		seelog.Debug("Event stream closed, stop listening to the event stream")
+		seelog.Debug("event stream closed, stop listening to the event stream")
 		engine.containerChangeEventStream.Unsubscribe(containerChangeHandler)
 		engine.removeAll()
 	}
@@ -517,7 +517,8 @@ func (engine *DockerStatsEngine) handleDockerEvents(events ...interface{}) error
 		case apicontainerstatus.ContainerStopped:
 			engine.removeContainer(dockerContainerChangeEvent.DockerID)
 		default:
-			seelog.Debugf("Ignoring event for container, id: %s, status: %d", dockerContainerChangeEvent.DockerID, dockerContainerChangeEvent.Status)
+			seelog.Debugf("Ignoring event for container, id: %s, status: %d", dockerContainerChangeEvent.DockerID,
+				dockerContainerChangeEvent.Status)
 		}
 	}
 

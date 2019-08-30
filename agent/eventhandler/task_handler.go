@@ -404,7 +404,7 @@ func (handler *TaskHandler) getTasksToEventsLen() int {
 func handleInvalidParamException(err error, events *list.List, eventToSubmit *list.Element) {
 	if utils.IsAWSErrorCodeEqual(err, ecs.ErrCodeInvalidParameterException) {
 		event := eventToSubmit.Value.(*sendableEvent)
-		seelog.Warnf("TaskHandler: Event is sent with invalid parameters; just removing: %s", event.toString())
+		seelog.Warnf("TaskHandler: event is sent with invalid parameters; just removing: %s", event.toString())
 		events.Remove(eventToSubmit)
 	}
 }

@@ -181,7 +181,7 @@ func TestHandleEventError(t *testing.T) {
 			}
 			containerChange := dockerContainerChange{
 				container: container,
-				Event: dockerapi.DockerContainerChangeEvent{
+				event: dockerapi.DockerContainerChangeEvent{
 					Status: tc.EventStatus,
 					DockerContainerMetadata: dockerapi.DockerContainerMetadata{
 						Error: tc.Error,
@@ -350,13 +350,13 @@ func TestHandleEventErrorRestartingNonEssentialContainersFromDockerAPI(t *testin
 				}
 				containerChange := dockerContainerChange{
 					container: container,
-					Event: dockerapi.DockerContainerChangeEvent{
+					event: dockerapi.DockerContainerChangeEvent{
 						Status: tc.EventStatus,
 						DockerContainerMetadata: dockerapi.DockerContainerMetadata{
 							Error: tc.Error,
 						},
 					},
-					Source: fromDockerApi,
+					source: fromDockerApi,
 				}
 				mtask := managedTask{
 					Task: &apitask.Task{
@@ -825,7 +825,7 @@ func TestStartContainerTransitionsWhenForwardTransitionPossible(t *testing.T) {
 			}
 
 			pauseContainerName := "pause"
-			restartingContainerName := "restart"
+
 			waitForAssertions := sync.WaitGroup{}
 			if steadyState == apicontainerstatus.ContainerResourcesProvisioned {
 				pauseContainer := apicontainer.NewContainerWithSteadyState(steadyState)
@@ -833,15 +833,10 @@ func TestStartContainerTransitionsWhenForwardTransitionPossible(t *testing.T) {
 				pauseContainer.DesiredStatusUnsafe = apicontainerstatus.ContainerResourcesProvisioned
 				pauseContainer.Name = pauseContainerName
 				task.Containers = append(task.Containers, pauseContainer)
-			} else {
-				restartingContainer := apicontainer.NewContainerWithSteadyState(steadyState)
-				restartingContainer.KnownStatusUnsafe = apicontainerstatus.ContainerRestarting
-				restartingContainer.DesiredStatusUnsafe = apicontainerstatus.ContainerRunning
-				restartingContainer.Name = restartingContainerName
-				task.Containers = append(task.Containers, restartingContainer)
+				waitForAssertions.Add(1)
 			}
 
-			waitForAssertions.Add(3)
+			waitForAssertions.Add(2)
 			canTransition, _, transitions, _ := task.startContainerTransitions(
 				func(cont *apicontainer.Container, nextStatus apicontainerstatus.ContainerStatus) {
 					if cont.Name == firstContainerName {
@@ -850,8 +845,6 @@ func TestStartContainerTransitionsWhenForwardTransitionPossible(t *testing.T) {
 						assert.Equal(t, nextStatus, apicontainerstatus.ContainerCreated, "Mismatch for second container next status")
 					} else if cont.Name == pauseContainerName {
 						assert.Equal(t, nextStatus, apicontainerstatus.ContainerResourcesProvisioned, "Mismatch for pause container next status")
-					} else if cont.Name == restartingContainerName {
-						assert.Equal(t, nextStatus, apicontainerstatus.ContainerRunning, "Mismatch for restarting container next status")
 					}
 					waitForAssertions.Done()
 				})
@@ -864,10 +857,7 @@ func TestStartContainerTransitionsWhenForwardTransitionPossible(t *testing.T) {
 				assert.True(t, ok, "Expected pause container transition to be in the transitions map")
 				assert.Equal(t, pauseContainerTransition, apicontainerstatus.ContainerResourcesProvisioned, "Mismatch for pause container transition state")
 			} else {
-				assert.Len(t, transitions, 3)
-				restartingContainerTransition, ok := transitions[restartingContainerName]
-				assert.True(t, ok, "Expected restarting container transition to be in the transitions map")
-				assert.Equal(t, restartingContainerTransition, apicontainerstatus.ContainerRunning, "Mismatch for restarting container transition state")
+				assert.Len(t, transitions, 2)
 			}
 			firstContainerTransition, ok := transitions[firstContainerName]
 			assert.True(t, ok, "Expected first container transition to be in the transitions map")
@@ -1056,7 +1046,7 @@ func TestWaitForContainerTransitionsForTerminalTask(t *testing.T) {
 	transitions[firstContainerName] = apicontainerstatus.ContainerPulled.String()
 	transitions[secondContainerName] = apicontainerstatus.ContainerPulled.String()
 
-	// Event though there are two keys in the transitions map, send
+	// event though there are two keys in the transitions map, send
 	// only one event. This tests that `waitForContainerTransition` doesn't
 	// block to receive two events and will still progress
 	go func() {
@@ -1187,7 +1177,7 @@ func TestHandleStoppedToSteadyStateTransition(t *testing.T) {
 	waitForDockerMessageAssertions.Add(1)
 	go func() {
 		dockerMessage := <-mTask.dockerMessages
-		assert.Equal(t, apicontainerstatus.ContainerStopped, dockerMessage.Event.Status,
+		assert.Equal(t, apicontainerstatus.ContainerStopped, dockerMessage.event.Status,
 			"Mismatch in event status")
 		assert.Equal(t, firstContainerName, dockerMessage.container.Name,
 			"Mismatch in container reference in event")
@@ -1734,7 +1724,7 @@ func TestHandleContainerChangeUpdateContainerHealth(t *testing.T) {
 
 	containerChange := dockerContainerChange{
 		container: container,
-		Event: dockerapi.DockerContainerChangeEvent{
+		event: dockerapi.DockerContainerChangeEvent{
 			Status: apicontainerstatus.ContainerRunning,
 			DockerContainerMetadata: dockerapi.DockerContainerMetadata{
 				DockerID: "dockerID",
@@ -1779,7 +1769,7 @@ func TestHandleContainerChangeUpdateMetadataRedundant(t *testing.T) {
 	exitCode := exitcodes.ExitError
 	containerChange := dockerContainerChange{
 		container: container,
-		Event: dockerapi.DockerContainerChangeEvent{
+		event: dockerapi.DockerContainerChangeEvent{
 			Status: apicontainerstatus.ContainerRunning,
 			DockerContainerMetadata: dockerapi.DockerContainerMetadata{
 				DockerID: "dockerID",

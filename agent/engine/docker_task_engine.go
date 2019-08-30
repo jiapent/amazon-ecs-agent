@@ -463,11 +463,11 @@ func (engine *DockerTaskEngine) checkTaskState(task *apitask.Task) {
 		if ok {
 			managedTask.emitDockerContainerChange(dockerContainerChange{
 				container: container,
-				Event: dockerapi.DockerContainerChangeEvent{
+				event: dockerapi.DockerContainerChangeEvent{
 					Status:                  status,
 					DockerContainerMetadata: metadata,
 				},
-				Source:                       fromInspect,
+				source:                       fromInspect,
 				containerPrevRestartAttempts: restartAttempts,
 			})
 		}
@@ -496,11 +496,11 @@ func (engine *DockerTaskEngine) checkContainerState(container *apicontainer.Cont
 	if ok {
 		managedTask.emitDockerContainerChange(dockerContainerChange{
 			container: container,
-			Event: dockerapi.DockerContainerChangeEvent{
+			event: dockerapi.DockerContainerChangeEvent{
 				Status:                  status,
 				DockerContainerMetadata: metadata,
 			},
-			Source:                       fromInspect,
+			source:                       fromInspect,
 			containerPrevRestartAttempts: restartAttempts,
 		})
 	}
@@ -671,7 +671,7 @@ func (engine *DockerTaskEngine) handleDockerEvent(event dockerapi.DockerContaine
 	}
 	seelog.Debugf("Task engine [%s]: writing docker event to the task: %s",
 		task.Arn, event.String())
-	managedTask.emitDockerContainerChange(dockerContainerChange{container: cont.Container, Event: event, Source: fromDockerEvent})
+	managedTask.emitDockerContainerChange(dockerContainerChange{container: cont.Container, event: event, source: fromDockerEvent})
 	seelog.Debugf("Task engine [%s]: wrote docker event to the task: %s",
 		task.Arn, event.String())
 }
@@ -1282,11 +1282,11 @@ func (engine *DockerTaskEngine) transitionContainer(task *apitask.Task, containe
 	if ok {
 		managedTask.emitDockerContainerChange(dockerContainerChange{
 			container: container,
-			Event: dockerapi.DockerContainerChangeEvent{
+			event: dockerapi.DockerContainerChangeEvent{
 				Status:                  to,
 				DockerContainerMetadata: metadata,
 			},
-			Source:                       fromDockerApi,
+			source:                       fromDockerApi,
 			containerPrevRestartAttempts: restartAttempts,
 		})
 	}

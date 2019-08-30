@@ -24,7 +24,7 @@ import (
 /*
 TODO: Make this whole thing better
 
-What's here right now is a stub just so that agent logs can appear in the Event Log.  Longer term, we should do a few
+What's here right now is a stub just so that agent logs can appear in the event Log.  Longer term, we should do a few
 things to make this better:
 
 1) Don't use init() and a package-global variable

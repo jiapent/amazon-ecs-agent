@@ -211,7 +211,7 @@ func TestSupportedCapabilitiesWindows(t *testing.T) {
 				Name: aws.String(attributePrefix + capabilityContainerOrdering),
 			},
 			{
-				Name: aws.String(attributePrefix + capabilityAutoRestartNonEssentialContainer),
+				Name: aws.String(attributePrefix + capabilityAutoRestartNonEssentialContainers),
 			},
 		}...)
 

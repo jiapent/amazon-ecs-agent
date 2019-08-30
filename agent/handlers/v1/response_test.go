@@ -70,7 +70,7 @@ func TestTaskResponse(t *testing.T) {
 				"Volumes": []interface{}{
 					map[string]interface{}{
 						"DockerName":  volName,
-						"Source":      volSource,
+						"source":      volSource,
 						"Destination": volDestination,
 					},
 				},
@@ -151,7 +151,7 @@ func TestContainerResponse(t *testing.T) {
 		"Volumes": []interface{}{
 			map[string]interface{}{
 				"DockerName":  volName,
-				"Source":      volSource,
+				"source":      volSource,
 				"Destination": volDestination,
 			},
 		},
