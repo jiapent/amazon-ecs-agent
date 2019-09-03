@@ -74,7 +74,7 @@ type Network struct {
 // VolumeResponse is the schema for the volume response JSON object
 type VolumeResponse struct {
 	DockerName  string `json:"DockerName,omitempty"`
-	Source      string `json:"Source,omitempty"`
+	Source      string `json:"source,omitempty"`
 	Destination string `json:"Destination,omitempty"`
 }
 
