@@ -140,7 +140,7 @@ func (udevWatcher *UdevWatcher) Init() error {
 
 // Start periodically updates the state of ENIs connected to the system
 func (udevWatcher *UdevWatcher) Start() {
-	// Udev Event Handler
+	// Udev event Handler
 	go udevWatcher.eventHandler()
 	udevWatcher.performPeriodicReconciliation(defaultReconciliationInterval)
 }

@@ -288,6 +288,8 @@ type Container struct {
 
 	Essential *bool `locationName:"essential" type:"boolean"`
 
+	FirelensConfiguration *FirelensConfiguration `locationName:"firelensConfiguration" type:"structure"`
+
 	HealthCheckType *string `locationName:"healthCheckType" type:"string" enum:"HealthCheckType"`
 
 	Image *string `locationName:"image" type:"string"`
@@ -307,6 +309,10 @@ type Container struct {
 	PortMappings []*PortMapping `locationName:"portMappings" type:"list"`
 
 	RegistryAuthentication *RegistryAuthenticationData `locationName:"registryAuthentication" type:"structure"`
+
+	RestartMaxAttempts *int64 `locationName:"restartMaxAttempts" type:"integer"`
+
+	RestartPolicy *string `locationName:"restartPolicy" type:"string" enum:"RestartPolicy"`
 
 	Secrets []*Secret `locationName:"secrets" type:"list"`
 
@@ -508,6 +514,24 @@ func (s ErrorOutput) String() string {
 
 // GoString returns the string representation
 func (s ErrorOutput) GoString() string {
+	return s.String()
+}
+
+type FirelensConfiguration struct {
+	_ struct{} `type:"structure"`
+
+	Options map[string]*string `locationName:"options" type:"map"`
+
+	Type *string `locationName:"type" type:"string" enum:"FirelensConfigurationType"`
+}
+
+// String returns the string representation
+func (s FirelensConfiguration) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s FirelensConfiguration) GoString() string {
 	return s.String()
 }
 
@@ -1096,11 +1120,11 @@ type Secret struct {
 
 	Region *string `locationName:"region" type:"string"`
 
+	Target *string `locationName:"target" type:"string" enum:"SecretTarget"`
+
 	Type *string `locationName:"type" type:"string" enum:"SecretType"`
 
 	ValueFrom *string `locationName:"valueFrom" type:"string"`
-
-	Target *string `locationName:"target" type:"string"`
 }
 
 // String returns the string representation

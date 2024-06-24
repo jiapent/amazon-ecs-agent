@@ -131,7 +131,7 @@ func (vol *VolumeResource) initStatusToTransitions() {
 	vol.statusToTransitions = statusToTransitions
 }
 
-// Source returns the name of the volume resource which is used as the source of the volume mount
+// source returns the name of the volume resource which is used as the source of the volume mount
 func (cfg *DockerVolumeConfig) Source() string {
 	return cfg.DockerVolumeName
 }

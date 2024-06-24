@@ -31,21 +31,22 @@ import (
 	"context"
 
 	apicontainer "github.com/aws/amazon-ecs-agent/agent/api/container"
-	"github.com/aws/amazon-ecs-agent/agent/api/mocks"
+	mock_api "github.com/aws/amazon-ecs-agent/agent/api/mocks"
 	apitask "github.com/aws/amazon-ecs-agent/agent/api/task"
 	"github.com/aws/amazon-ecs-agent/agent/config"
 	rolecredentials "github.com/aws/amazon-ecs-agent/agent/credentials"
-	"github.com/aws/amazon-ecs-agent/agent/credentials/mocks"
+	mock_credentials "github.com/aws/amazon-ecs-agent/agent/credentials/mocks"
 	"github.com/aws/amazon-ecs-agent/agent/engine/dockerstate"
-	"github.com/aws/amazon-ecs-agent/agent/engine/mocks"
+	mock_engine "github.com/aws/amazon-ecs-agent/agent/engine/mocks"
 	"github.com/aws/amazon-ecs-agent/agent/eventhandler"
 	"github.com/aws/amazon-ecs-agent/agent/eventstream"
 	"github.com/aws/amazon-ecs-agent/agent/statemanager"
-	"github.com/aws/amazon-ecs-agent/agent/utils/mocks"
+
 	"github.com/aws/amazon-ecs-agent/agent/utils/retry"
+	mock_retry "github.com/aws/amazon-ecs-agent/agent/utils/retry/mock"
 	"github.com/aws/amazon-ecs-agent/agent/version"
 	"github.com/aws/amazon-ecs-agent/agent/wsclient"
-	"github.com/aws/amazon-ecs-agent/agent/wsclient/mock"
+	mock_wsclient "github.com/aws/amazon-ecs-agent/agent/wsclient/mock"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/gorilla/websocket"
 	"github.com/pkg/errors"
@@ -166,35 +167,15 @@ func TestACSWSURL(t *testing.T) {
 	wsurl := acsWsURL(acsURL, "myCluster", "myContainerInstance", taskEngine, &mockSessionResources{})
 
 	parsed, err := url.Parse(wsurl)
-	if err != nil {
-		t.Fatal("Should be able to parse url")
-	}
-
-	if parsed.Path != "/ws" {
-		t.Fatal("Wrong path")
-	}
-
-	if parsed.Query().Get("clusterArn") != "myCluster" {
-		t.Fatal("Wrong cluster")
-	}
-	if parsed.Query().Get("containerInstanceArn") != "myContainerInstance" {
-		t.Fatal("Wrong cluster")
-	}
-	if parsed.Query().Get("agentVersion") != version.Version {
-		t.Fatal("Wrong cluster")
-	}
-	if parsed.Query().Get("agentHash") != version.GitHashString() {
-		t.Fatal("Wrong cluster")
-	}
-	if parsed.Query().Get("dockerVersion") != "DockerVersion: Docker version result" {
-		t.Fatal("Wrong docker version")
-	}
-	if parsed.Query().Get(sendCredentialsURLParameterName) != "true" {
-		t.Fatalf("Wrong value set for: %s", sendCredentialsURLParameterName)
-	}
-	if parsed.Query().Get("seqNum") != "1" {
-		t.Fatal("Wrong seqNum")
-	}
+	assert.NoError(t, err, "should be able to parse URL")
+	assert.Equal(t, "/ws", parsed.Path, "wrong path")
+	assert.Equal(t, "myCluster", parsed.Query().Get("clusterArn"), "wrong cluster")
+	assert.Equal(t, "myContainerInstance", parsed.Query().Get("containerInstanceArn"), "wrong container instance")
+	assert.Equal(t, version.Version, parsed.Query().Get("agentVersion"), "wrong agent version")
+	assert.Equal(t, version.GitHashString(), parsed.Query().Get("agentHash"), "wrong agent hash")
+	assert.Equal(t, "DockerVersion: Docker version result", parsed.Query().Get("dockerVersion"), "wrong docker version")
+	assert.Equalf(t, "true", parsed.Query().Get(sendCredentialsURLParameterName), "Wrong value set for: %s", sendCredentialsURLParameterName)
+	assert.Equal(t, "1", parsed.Query().Get("seqNum"), "wrong seqNum")
 }
 
 // TestHandlerReconnectsOnConnectErrors tests if handler reconnects retries
@@ -280,7 +261,7 @@ func TestComputeReconnectDelayForActiveInstance(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockBackoff := mock_utils.NewMockBackoff(ctrl)
+	mockBackoff := mock_retry.NewMockBackoff(ctrl)
 	mockBackoff.EXPECT().Duration().Return(connectionBackoffMax)
 
 	acsSession := session{backoff: mockBackoff}
@@ -354,7 +335,7 @@ func TestHandlerReconnectsWithoutBackoffOnEOFError(t *testing.T) {
 	deregisterInstanceEventStream := eventstream.NewEventStream("DeregisterContainerInstance", ctx)
 	deregisterInstanceEventStream.StartListening()
 
-	mockBackoff := mock_utils.NewMockBackoff(ctrl)
+	mockBackoff := mock_retry.NewMockBackoff(ctrl)
 	mockWsClient := mock_wsclient.NewMockClientServer(ctrl)
 	mockWsClient.EXPECT().SetAnyRequestHandler(gomock.Any()).AnyTimes()
 	mockWsClient.EXPECT().AddRequestHandler(gomock.Any()).AnyTimes()
@@ -417,7 +398,7 @@ func TestHandlerReconnectsWithBackoffOnNonEOFError(t *testing.T) {
 	deregisterInstanceEventStream := eventstream.NewEventStream("DeregisterContainerInstance", ctx)
 	deregisterInstanceEventStream.StartListening()
 
-	mockBackoff := mock_utils.NewMockBackoff(ctrl)
+	mockBackoff := mock_retry.NewMockBackoff(ctrl)
 	mockWsClient := mock_wsclient.NewMockClientServer(ctrl)
 	mockWsClient.EXPECT().SetAnyRequestHandler(gomock.Any()).AnyTimes()
 	mockWsClient.EXPECT().AddRequestHandler(gomock.Any()).AnyTimes()

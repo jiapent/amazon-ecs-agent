@@ -16,8 +16,11 @@ package engine
 
 import (
 	"context"
+	"fmt"
+	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -41,10 +44,12 @@ import (
 	"github.com/aws/amazon-ecs-agent/agent/statechange"
 	"github.com/aws/amazon-ecs-agent/agent/statemanager"
 	"github.com/aws/amazon-ecs-agent/agent/taskresource"
+	"github.com/aws/amazon-ecs-agent/agent/taskresource/firelens"
 	"github.com/aws/amazon-ecs-agent/agent/utils"
 	"github.com/aws/amazon-ecs-agent/agent/utils/retry"
 	utilsync "github.com/aws/amazon-ecs-agent/agent/utils/sync"
 	"github.com/aws/amazon-ecs-agent/agent/utils/ttime"
+	dockercontainer "github.com/docker/docker/api/types/container"
 
 	"github.com/cihub/seelog"
 	"github.com/docker/docker/api/types"
@@ -69,6 +74,18 @@ const (
 	maxEngineConnectRetryDelay         = 2 * time.Second
 	engineConnectRetryJitterMultiplier = 0.20
 	engineConnectRetryDelayMultiplier  = 1.5
+	// logDriverTypeFirelens is the log driver type for containers that want to use the firelens container to send logs.
+	logDriverTypeFirelens   = "awsfirelens"
+	logDriverTypeFluentd    = "fluentd"
+	logDriverTag            = "tag"
+	logDriverFluentdAddress = "fluentd-address"
+	dataLogDriverPath       = "/data/firelens/"
+	logDriverAsyncConnect   = "fluentd-async-connect"
+	dataLogDriverSocketPath = "/socket/fluent.sock"
+	socketPathPrefix        = "unix://"
+
+	// fluentTagDockerFormat is the format for the log tag, which is "containerName-firelens-taskID"
+	fluentTagDockerFormat = "%s-firelens-%s"
 )
 
 // DockerTaskEngine is a state machine for managing a task and its containers
@@ -437,6 +454,7 @@ func (engine *DockerTaskEngine) checkTaskState(task *apitask.Task) {
 		if !ok {
 			continue
 		}
+		restartAttempts := container.GetRestartAttempts()
 		status, metadata := engine.client.DescribeContainer(engine.ctx, dockerContainer.DockerID)
 		engine.tasksLock.RLock()
 		managedTask, ok := engine.managedTasks[task.Arn]
@@ -449,8 +467,42 @@ func (engine *DockerTaskEngine) checkTaskState(task *apitask.Task) {
 					Status:                  status,
 					DockerContainerMetadata: metadata,
 				},
+				source:                       fromInspect,
+				containerPrevRestartAttempts: restartAttempts,
 			})
 		}
+	}
+}
+
+// checkContainerState inspects the state of input container and writes
+// its state to the managed task's container channel.
+func (engine *DockerTaskEngine) checkContainerState(container *apicontainer.Container, task *apitask.Task) {
+	taskContainers, ok := engine.state.ContainerMapByArn(task.Arn)
+	if !ok {
+		seelog.Warnf("Task engine [%s]: could not check container %s state; no task in state", task.Arn, container.Name)
+		return
+	}
+
+	dockerContainer, ok := taskContainers[container.Name]
+	if !ok {
+		return
+	}
+	restartAttempts := container.GetRestartAttempts()
+	status, metadata := engine.client.DescribeContainer(engine.ctx, dockerContainer.DockerID)
+	engine.tasksLock.RLock()
+	managedTask, ok := engine.managedTasks[task.Arn]
+	engine.tasksLock.RUnlock()
+
+	if ok {
+		managedTask.emitDockerContainerChange(dockerContainerChange{
+			container: container,
+			event: dockerapi.DockerContainerChangeEvent{
+				Status:                  status,
+				DockerContainerMetadata: metadata,
+			},
+			source:                       fromInspect,
+			containerPrevRestartAttempts: restartAttempts,
+		})
 	}
 }
 
@@ -619,7 +671,7 @@ func (engine *DockerTaskEngine) handleDockerEvent(event dockerapi.DockerContaine
 	}
 	seelog.Debugf("Task engine [%s]: writing docker event to the task: %s",
 		task.Arn, event.String())
-	managedTask.emitDockerContainerChange(dockerContainerChange{container: cont.Container, event: event})
+	managedTask.emitDockerContainerChange(dockerContainerChange{container: cont.Container, event: event, source: fromDockerEvent})
 	seelog.Debugf("Task engine [%s]: wrote docker event to the task: %s",
 		task.Arn, event.String())
 }
@@ -875,9 +927,40 @@ func (engine *DockerTaskEngine) createContainer(task *apitask.Task, container *a
 		}
 	}
 
+	firelensConfig := container.GetFirelensConfig()
+	if firelensConfig != nil {
+		err := task.AddFirelensContainerBindMounts(firelensConfig.Type, hostConfig, engine.cfg)
+		if err != nil {
+			return dockerapi.DockerContainerMetadata{Error: apierrors.NamedError(err)}
+		}
+
+		cerr := task.PopulateSecretLogOptionsToFirelensContainer(container)
+		if cerr != nil {
+			return dockerapi.DockerContainerMetadata{Error: apierrors.NamedError(cerr)}
+		}
+
+		if firelensConfig.Type == firelens.FirelensConfigTypeFluentd {
+			// For fluentd router, needs to specify FLUENT_UID to root in order for the fluentd process to access
+			// the socket created by Docker.
+			container.MergeEnvironmentVariables(map[string]string{
+				"FLUENT_UID": "0",
+			})
+		}
+	}
+
+	// If the container is using a special log driver type "awsfirelens", it means the container wants to use
+	// the firelens container to send logs. In this case, override the log driver type to be fluentd
+	// and specify appropriate tag and fluentd-address, so that the logs are sent to and routed by the firelens container.
+	// For reference - https://docs.docker.com/config/containers/logging/fluentd/.
+	if hostConfig.LogConfig.Type == logDriverTypeFirelens {
+		hostConfig.LogConfig = getFirelensLogConfig(task, container, hostConfig, engine.cfg)
+	}
+
 	//Apply the log driver secret into container's LogConfig and Env secrets to container.Environment
-	if container.HasSecretAsEnvOrLogDriver() {
-		//splunkToken, ok := hostConfig.LogConfig.Config["splunk-token"]
+	hasSecretAsEnvOrLogDriver := func(s apicontainer.Secret) bool {
+		return s.Type == apicontainer.SecretTypeEnv || s.Target == apicontainer.SecretTargetLogDriver
+	}
+	if container.HasSecret(hasSecretAsEnvOrLogDriver) {
 		err := task.PopulateSecrets(hostConfig, container)
 
 		if err != nil {
@@ -942,7 +1025,23 @@ func (engine *DockerTaskEngine) createContainer(task *apitask.Task, container *a
 	container.SetLabels(config.Labels)
 	seelog.Infof("Task engine [%s]: created docker container for task: %s -> %s, took %s",
 		task.Arn, container.Name, metadata.DockerID, time.Since(createContainerBegin))
+	container.SetRuntimeID(metadata.DockerID)
 	return metadata
+}
+
+func getFirelensLogConfig(task *apitask.Task, container *apicontainer.Container, hostConfig *dockercontainer.HostConfig, cfg *config.Config) dockercontainer.LogConfig {
+	fields := strings.Split(task.Arn, "/")
+	taskID := fields[len(fields)-1]
+	tag := fmt.Sprintf(fluentTagDockerFormat, container.Name, taskID)
+	fluentd := socketPathPrefix + filepath.Join(cfg.DataDirOnHost, dataLogDriverPath, taskID, dataLogDriverSocketPath)
+	logConfig := hostConfig.LogConfig
+	logConfig.Type = logDriverTypeFluentd
+	logConfig.Config = make(map[string]string)
+	logConfig.Config[logDriverTag] = tag
+	logConfig.Config[logDriverFluentdAddress] = fluentd
+	logConfig.Config[logDriverAsyncConnect] = strconv.FormatBool(true)
+	seelog.Debugf("Applying firelens log config for container %s: %v", container.Name, logConfig)
+	return logConfig
 }
 
 func (engine *DockerTaskEngine) startContainer(task *apitask.Task, container *apicontainer.Container) dockerapi.DockerContainerMetadata {
@@ -1171,6 +1270,10 @@ func (engine *DockerTaskEngine) updateTaskUnsafe(task *apitask.Task, update *api
 func (engine *DockerTaskEngine) transitionContainer(task *apitask.Task, container *apicontainer.Container, to apicontainerstatus.ContainerStatus) {
 	// Let docker events operate async so that we can continue to handle ACS / other requests
 	// This is safe because 'applyContainerState' will not mutate the task
+
+	// Get restartAttempts when making the api call, and include this in ContainerChange event, this is useful for
+	// restarting non-essential containers to check if it's a new status change.
+	restartAttempts := container.GetRestartAttempts()
 	metadata := engine.applyContainerState(task, container, to)
 
 	engine.tasksLock.RLock()
@@ -1183,6 +1286,8 @@ func (engine *DockerTaskEngine) transitionContainer(task *apitask.Task, containe
 				Status:                  to,
 				DockerContainerMetadata: metadata,
 			},
+			source:                       fromDockerApi,
+			containerPrevRestartAttempts: restartAttempts,
 		})
 	}
 }

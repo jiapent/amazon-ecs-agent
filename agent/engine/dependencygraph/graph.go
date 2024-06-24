@@ -15,6 +15,9 @@ package dependencygraph
 
 import (
 	"fmt"
+	"strings"
+	"time"
+
 	apicontainer "github.com/aws/amazon-ecs-agent/agent/api/container"
 	apicontainerstatus "github.com/aws/amazon-ecs-agent/agent/api/container/status"
 	apitask "github.com/aws/amazon-ecs-agent/agent/api/task"
@@ -22,8 +25,6 @@ import (
 	"github.com/aws/amazon-ecs-agent/agent/taskresource"
 	log "github.com/cihub/seelog"
 	"github.com/pkg/errors"
-	"strings"
-	"time"
 )
 
 const (
@@ -217,7 +218,8 @@ func verifyContainerOrderingStatusResolvable(target *apicontainer.Container, exi
 		return nil, nil
 	}
 
-	for _, dependency := range target.DependsOn {
+	targetDependencies := target.GetDependsOn()
+	for _, dependency := range targetDependencies {
 		dependencyContainer, ok := existingContainers[dependency.ContainerName]
 		if !ok {
 			return nil, fmt.Errorf("dependency graph: container ordering dependency [%v] for target [%v] does not exist.", dependencyContainer, target)
@@ -317,16 +319,14 @@ func containerOrderingDependenciesCanResolve(target *apicontainer.Container,
 		return false
 
 	case successCondition:
-		var dependencyStoppedSuccessfully bool
-
-		if dependsOnContainer.GetKnownExitCode() != nil {
-			dependencyStoppedSuccessfully = dependsOnContainer.GetKnownStatus() == apicontainerstatus.ContainerStopped &&
-				*dependsOnContainer.GetKnownExitCode() == successExitCode
+		if dependsOnContainer.GetRestartPolicy() == apicontainer.UnlessTaskStopped {
+			return false
 		}
-		return verifyContainerOrderingStatus(dependsOnContainer) || dependencyStoppedSuccessfully
+
+		return verifyContainerOrderingStatus(dependsOnContainer) || conrtainerStoppedSuccess(dependsOnContainer)
 
 	case completeCondition:
-		return verifyContainerOrderingStatus(dependsOnContainer)
+		return dependsOnContainer.GetRestartPolicy() != apicontainer.UnlessTaskStopped && verifyContainerOrderingStatus(dependsOnContainer)
 
 	case healthyCondition:
 		return verifyContainerOrderingStatus(dependsOnContainer) && dependsOnContainer.HealthStatusShouldBeReported()
@@ -355,7 +355,9 @@ func containerOrderingDependenciesIsResolved(target *apicontainer.Container,
 			// The 'target' container desires to be moved to 'Created' state.
 			// Allow this only if the known status of the linked container is
 			// 'Created' or if the dependency container is in 'steady state'
-			return dependsOnContainerKnownStatus == apicontainerstatus.ContainerCreated || dependsOnContainer.IsKnownSteadyState()
+			return dependsOnContainerKnownStatus == apicontainerstatus.ContainerCreated ||
+				dependsOnContainerKnownStatus == apicontainerstatus.ContainerRestarting ||
+				dependsOnContainer.IsKnownSteadyState()
 		} else if targetDesiredStatus == target.GetSteadyStateStatus() {
 			// The 'target' container desires to be moved to its 'steady' state.
 			// Allow this only if the dependency container is in 'steady state' as well
@@ -420,7 +422,8 @@ func verifyShutdownOrder(target *apicontainer.Container, existingContainers map[
 	missingShutdownDependencies := []string{}
 
 	for _, existingContainer := range existingContainers {
-		for _, dependency := range existingContainer.DependsOn {
+		dependencies := existingContainer.GetDependsOn()
+		for _, dependency := range dependencies {
 			// If another container declares a dependency on our target, we will want to verify that the container is
 			// stopped.
 			if dependency.ContainerName == target.Name {
@@ -449,4 +452,10 @@ func onSteadyStateCanResolve(target *apicontainer.Container, run *apicontainer.C
 func onSteadyStateIsResolved(target *apicontainer.Container, run *apicontainer.Container) bool {
 	return target.GetDesiredStatus() >= apicontainerstatus.ContainerCreated &&
 		run.GetKnownStatus() >= run.GetSteadyStateStatus()
+}
+
+func conrtainerStoppedSuccess(c *apicontainer.Container) bool {
+	return c.GetKnownExitCode() != nil &&
+		c.GetKnownStatus() == apicontainerstatus.ContainerStopped &&
+		*c.GetKnownExitCode() == successExitCode
 }

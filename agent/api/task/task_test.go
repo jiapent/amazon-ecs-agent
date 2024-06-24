@@ -23,20 +23,22 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/amazon-ecs-agent/agent/utils/retry"
+
 	"github.com/aws/amazon-ecs-agent/agent/acs/model/ecsacs"
 	apicontainer "github.com/aws/amazon-ecs-agent/agent/api/container"
 	apicontainerstatus "github.com/aws/amazon-ecs-agent/agent/api/container/status"
 	apieni "github.com/aws/amazon-ecs-agent/agent/api/eni"
 	apitaskstatus "github.com/aws/amazon-ecs-agent/agent/api/task/status"
 	"github.com/aws/amazon-ecs-agent/agent/asm"
-	"github.com/aws/amazon-ecs-agent/agent/asm/factory/mocks"
-	"github.com/aws/amazon-ecs-agent/agent/asm/mocks"
+	mock_factory "github.com/aws/amazon-ecs-agent/agent/asm/factory/mocks"
+	mock_secretsmanageriface "github.com/aws/amazon-ecs-agent/agent/asm/mocks"
 	"github.com/aws/amazon-ecs-agent/agent/config"
 	"github.com/aws/amazon-ecs-agent/agent/credentials"
-	"github.com/aws/amazon-ecs-agent/agent/credentials/mocks"
+	mock_credentials "github.com/aws/amazon-ecs-agent/agent/credentials/mocks"
 	"github.com/aws/amazon-ecs-agent/agent/dockerclient"
 	"github.com/aws/amazon-ecs-agent/agent/dockerclient/dockerapi"
-	"github.com/aws/amazon-ecs-agent/agent/dockerclient/dockerapi/mocks"
+	mock_dockerapi "github.com/aws/amazon-ecs-agent/agent/dockerclient/dockerapi/mocks"
 	mock_ssm_factory "github.com/aws/amazon-ecs-agent/agent/ssm/factory/mocks"
 	"github.com/aws/amazon-ecs-agent/agent/taskresource"
 	"github.com/aws/amazon-ecs-agent/agent/taskresource/asmauth"
@@ -1039,6 +1041,19 @@ func TestTaskFromACS(t *testing.T) {
 					},
 				},
 			},
+			{
+				Name:               strptr("restartContainer"),
+				Cpu:                intptr(10),
+				Command:            []*string{strptr("command"), strptr("command2")},
+				EntryPoint:         []*string{strptr("sh"), strptr("-c")},
+				Environment:        map[string]*string{"key": strptr("value")},
+				Essential:          boolptr(false),
+				RestartPolicy:      strptr("ON_FAILURE"),
+				RestartMaxAttempts: intptr(5),
+				Image:              strptr("image:tag"),
+				Links:              []*string{strptr("link1"), strptr("link2")},
+				Memory:             intptr(100),
+			},
 		},
 		Volumes: []*ecsacs.Volume{
 			{
@@ -1097,6 +1112,7 @@ func TestTaskFromACS(t *testing.T) {
 				Links:       []string{"link1", "link2"},
 				EntryPoint:  &[]string{"sh", "-c"},
 				Essential:   true,
+				RestartInfo: nil,
 				Environment: map[string]string{"key": "value"},
 				CPU:         10,
 				Memory:      100,
@@ -1136,6 +1152,23 @@ func TestTaskFromACS(t *testing.T) {
 						Region:    "us-west-2",
 					},
 				},
+				TransitionDependenciesMap: make(map[apicontainerstatus.ContainerStatus]apicontainer.TransitionDependencySet),
+			},
+			{
+				Name:        "restartContainer",
+				CPU:         10,
+				Command:     []string{"command", "command2"},
+				EntryPoint:  &[]string{"sh", "-c"},
+				Environment: map[string]string{"key": "value"},
+				Essential:   false,
+				RestartInfo: &apicontainer.RestartInfo{
+					RestartPolicy:      apicontainer.OnFailure,
+					RestartMaxAttempts: 5,
+					RestartBackoff:     retry.NewExponentialBackoff(restartBackoffMin, restartBackoffMax, restartBackoffJitter, restartBackoffMultiplier),
+				},
+				Image:                     "image:tag",
+				Links:                     []string{"link1", "link2"},
+				Memory:                    100,
 				TransitionDependenciesMap: make(map[apicontainerstatus.ContainerStatus]apicontainer.TransitionDependencySet),
 			},
 		},
@@ -1434,6 +1467,52 @@ func TestTaskUpdateKnownStatusChecksSteadyStateWhenSetToResourceProvisioned(t *t
 	newStatus = testTask.updateTaskKnownStatus()
 	assert.Equal(t, apitaskstatus.TaskRunning, newStatus, "Incorrect status returned: %s", newStatus.String())
 	assert.Equal(t, apitaskstatus.TaskRunning, testTask.GetKnownStatus())
+}
+
+func TestTaskUpdateKnownStatusForRestartingContainer(t *testing.T) {
+	testTask := &Task{
+		KnownStatusUnsafe: apitaskstatus.TaskStatusNone,
+		Containers: []*apicontainer.Container{
+			{
+				KnownStatusUnsafe: apicontainerstatus.ContainerCreated,
+				Essential:         false,
+				RestartInfo: &apicontainer.RestartInfo{
+					RestartPolicy:   apicontainer.OnFailure,
+					RestartAttempts: 0,
+				},
+			},
+			{
+				KnownStatusUnsafe: apicontainerstatus.ContainerRunning,
+			},
+			{
+				KnownStatusUnsafe: apicontainerstatus.ContainerRunning,
+			},
+		},
+	}
+
+	// First lifecycle of restarting container will influence task status
+	newStatus := testTask.updateTaskKnownStatus()
+	assert.Equal(t, apitaskstatus.TaskCreated, newStatus, "Incorrect status returned: %s", newStatus.String())
+	assert.Equal(t, apitaskstatus.TaskCreated, testTask.GetKnownStatus())
+
+	// Restarting container will not influence task status except `Stopped`
+	testTask.Containers[0].RestartInfo.RestartAttempts = 1
+	testTask.Containers[0].KnownStatusUnsafe = apicontainerstatus.ContainerRestarting
+	newStatus = testTask.updateTaskKnownStatus()
+	assert.Equal(t, apitaskstatus.TaskRunning, newStatus, "Incorrect status returned: %s", newStatus.String())
+	assert.Equal(t, apitaskstatus.TaskRunning, testTask.GetKnownStatus())
+
+	// Only all containers are stopped then task will be updated as `Stopped`
+	testTask.Containers[1].SetKnownStatus(apicontainerstatus.ContainerStopped)
+	testTask.Containers[2].SetKnownStatus(apicontainerstatus.ContainerStopped)
+	newStatus = testTask.updateTaskKnownStatus()
+	assert.Equal(t, apitaskstatus.TaskStatusNone, newStatus, "Incorrect status returned: %s", newStatus.String())
+	assert.Equal(t, apitaskstatus.TaskRunning, testTask.GetKnownStatus())
+
+	testTask.Containers[0].SetKnownStatus(apicontainerstatus.ContainerStopped)
+	newStatus = testTask.updateTaskKnownStatus()
+	assert.Equal(t, apitaskstatus.TaskStopped, newStatus, "Incorrect status returned: %s", newStatus.String())
+	assert.Equal(t, apitaskstatus.TaskStopped, testTask.GetKnownStatus())
 }
 
 func assertSetStructFieldsEqual(t *testing.T, expected, actual interface{}) {
@@ -2917,21 +2996,21 @@ func TestInitializeContainerOrderingWithLinksAndVolumesFrom(t *testing.T) {
 	assert.NoError(t, err)
 
 	containerResultWithVolume := task.Containers[0]
-	assert.Equal(t, "myName1", containerResultWithVolume.DependsOn[0].ContainerName)
-	assert.Equal(t, ContainerOrderingCreateCondition, containerResultWithVolume.DependsOn[0].Condition)
+	assert.Equal(t, "myName1", containerResultWithVolume.DependsOnUnsafe[0].ContainerName)
+	assert.Equal(t, ContainerOrderingCreateCondition, containerResultWithVolume.DependsOnUnsafe[0].Condition)
 
 	containerResultWithLink := task.Containers[1]
-	assert.Equal(t, "myName", containerResultWithLink.DependsOn[0].ContainerName)
-	assert.Equal(t, ContainerOrderingStartCondition, containerResultWithLink.DependsOn[0].Condition)
+	assert.Equal(t, "myName", containerResultWithLink.DependsOnUnsafe[0].ContainerName)
+	assert.Equal(t, ContainerOrderingStartCondition, containerResultWithLink.DependsOnUnsafe[0].Condition)
 
 	containerResultWithBothVolumeAndLink := task.Containers[2]
-	assert.Equal(t, "myName", containerResultWithBothVolumeAndLink.DependsOn[0].ContainerName)
-	assert.Equal(t, ContainerOrderingCreateCondition, containerResultWithBothVolumeAndLink.DependsOn[0].Condition)
-	assert.Equal(t, "myName1", containerResultWithBothVolumeAndLink.DependsOn[1].ContainerName)
-	assert.Equal(t, ContainerOrderingStartCondition, containerResultWithBothVolumeAndLink.DependsOn[1].Condition)
+	assert.Equal(t, "myName", containerResultWithBothVolumeAndLink.DependsOnUnsafe[0].ContainerName)
+	assert.Equal(t, ContainerOrderingCreateCondition, containerResultWithBothVolumeAndLink.DependsOnUnsafe[0].Condition)
+	assert.Equal(t, "myName1", containerResultWithBothVolumeAndLink.DependsOnUnsafe[1].ContainerName)
+	assert.Equal(t, ContainerOrderingStartCondition, containerResultWithBothVolumeAndLink.DependsOnUnsafe[1].Condition)
 
 	containerResultWithNoVolumeOrLink := task.Containers[3]
-	assert.Equal(t, 0, len(containerResultWithNoVolumeOrLink.DependsOn))
+	assert.Equal(t, 0, len(containerResultWithNoVolumeOrLink.DependsOnUnsafe))
 }
 
 func TestInitializeContainerOrderingWithError(t *testing.T) {
@@ -2994,4 +3073,25 @@ func TestTaskFromACSPerContainerTimeouts(t *testing.T) {
 
 	assert.Equal(t, task.Containers[0].StartTimeout, expectedTimeout)
 	assert.Equal(t, task.Containers[0].StopTimeout, expectedTimeout)
+}
+
+func TestGetContainerIndex(t *testing.T) {
+	task := &Task{
+		Containers: []*apicontainer.Container{
+			{
+				Name: "c1",
+			},
+			{
+				Name: "p",
+				Type: apicontainer.ContainerCNIPause,
+			},
+			{
+				Name: "c2",
+			},
+		},
+	}
+
+	assert.Equal(t, 0, task.GetContainerIndex("c1"))
+	assert.Equal(t, 1, task.GetContainerIndex("c2"))
+	assert.Equal(t, -1, task.GetContainerIndex("p"))
 }

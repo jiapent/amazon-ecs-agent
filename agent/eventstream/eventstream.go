@@ -65,7 +65,7 @@ func (eventStream *EventStream) broadcast(event interface{}) {
 	eventStream.handlersLock.RLock()
 	defer eventStream.handlersLock.RUnlock()
 
-	seelog.Debugf("Event stream %s received events, broadcasting to listeners...", eventStream.name)
+	seelog.Debugf("event stream %s received events, broadcasting to listeners...", eventStream.name)
 
 	for _, handlerFunc := range eventStream.handlers {
 		go handlerFunc(event)
@@ -92,7 +92,7 @@ func (eventStream *EventStream) WriteToEventStream(event interface{}) error {
 	defer eventStream.statusLock.RUnlock()
 
 	if !eventStream.open {
-		return fmt.Errorf("Event stream is closed")
+		return fmt.Errorf("event stream is closed")
 	}
 	eventStream.event <- event
 	return nil
@@ -105,13 +105,13 @@ func (eventStream *EventStream) Context() context.Context {
 
 // listen listens to the event channel
 func (eventStream *EventStream) listen() {
-	seelog.Infof("Event stream %s start listening...", eventStream.name)
+	seelog.Infof("event stream %s start listening...", eventStream.name)
 	for {
 		select {
 		case event := <-eventStream.event:
 			eventStream.broadcast(event)
 		case <-eventStream.ctx.Done():
-			seelog.Infof("Event stream %s stopped listening...", eventStream.name)
+			seelog.Infof("event stream %s stopped listening...", eventStream.name)
 
 			eventStream.statusLock.Lock()
 			eventStream.open = false

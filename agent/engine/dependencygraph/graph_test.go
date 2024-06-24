@@ -24,7 +24,7 @@ import (
 	apicontainerstatus "github.com/aws/amazon-ecs-agent/agent/api/container/status"
 	apitask "github.com/aws/amazon-ecs-agent/agent/api/task"
 	"github.com/aws/amazon-ecs-agent/agent/taskresource"
-	"github.com/aws/amazon-ecs-agent/agent/taskresource/mocks"
+	mock_taskresource "github.com/aws/amazon-ecs-agent/agent/taskresource/mocks"
 	resourcestatus "github.com/aws/amazon-ecs-agent/agent/taskresource/status"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/golang/mock/gomock"
@@ -42,7 +42,7 @@ func volumeStrToVol(vols []string) []apicontainer.VolumeFrom {
 func steadyStateContainer(name string, dependsOn []apicontainer.DependsOn, desiredState apicontainerstatus.ContainerStatus, steadyState apicontainerstatus.ContainerStatus) *apicontainer.Container {
 	container := apicontainer.NewContainerWithSteadyState(steadyState)
 	container.Name = name
-	container.DependsOn = dependsOn
+	container.DependsOnUnsafe = dependsOn
 	container.DesiredStatusUnsafe = desiredState
 	return container
 }
@@ -50,7 +50,7 @@ func steadyStateContainer(name string, dependsOn []apicontainer.DependsOn, desir
 func createdContainer(name string, dependsOn []apicontainer.DependsOn, steadyState apicontainerstatus.ContainerStatus) *apicontainer.Container {
 	container := apicontainer.NewContainerWithSteadyState(steadyState)
 	container.Name = name
-	container.DependsOn = dependsOn
+	container.DependsOnUnsafe = dependsOn
 	container.DesiredStatusUnsafe = apicontainerstatus.ContainerCreated
 	return container
 }
@@ -260,6 +260,11 @@ func TestOnSteadyStateIsResolved(t *testing.T) {
 		{
 			TargetDesired: apicontainerstatus.ContainerCreated,
 			RunKnown:      apicontainerstatus.ContainerCreated,
+			Resolved:      false,
+		},
+		{
+			TargetDesired: apicontainerstatus.ContainerCreated,
+			RunKnown:      apicontainerstatus.ContainerRestarting,
 			Resolved:      false,
 		},
 		{
@@ -689,6 +694,26 @@ func TestContainerOrderingCanResolve(t *testing.T) {
 	}
 }
 
+func TestContainerOrderingCanResolveForAlwaysRestartingContainer(t *testing.T) {
+	// always restarting containers should not be dependent for `SUCCESS` and `COMPLETE`
+	for _, depCond := range []string{successCondition, completeCondition} {
+		target := &apicontainer.Container{
+			DesiredStatusUnsafe: apicontainerstatus.ContainerRunning,
+		}
+		dep := &apicontainer.Container{
+			DesiredStatusUnsafe: apicontainerstatus.ContainerRunning,
+			KnownStatusUnsafe:   apicontainerstatus.ContainerRunning,
+			KnownExitCodeUnsafe: aws.Int(1),
+			RestartInfo: &apicontainer.RestartInfo{
+				RestartPolicy: apicontainer.UnlessTaskStopped,
+			},
+			Essential: false,
+		}
+		resolvable := containerOrderingDependenciesCanResolve(target, dep, depCond)
+		assert.Equal(t, false, resolvable)
+	}
+}
+
 func TestContainerOrderingIsResolved(t *testing.T) {
 	testcases := []struct {
 		TargetDesired       apicontainerstatus.ContainerStatus
@@ -710,6 +735,12 @@ func TestContainerOrderingIsResolved(t *testing.T) {
 			Resolved:            true,
 		},
 		{
+			TargetDesired:       apicontainerstatus.ContainerCreated,
+			DependencyKnown:     apicontainerstatus.ContainerRestarting,
+			DependencyCondition: createCondition,
+			Resolved:            true,
+		},
+		{
 			TargetDesired:       apicontainerstatus.ContainerRunning,
 			DependencyKnown:     apicontainerstatus.ContainerStopped,
 			DependencyCondition: createCondition,
@@ -734,6 +765,12 @@ func TestContainerOrderingIsResolved(t *testing.T) {
 			Resolved:            true,
 		},
 		{
+			TargetDesired:       apicontainerstatus.ContainerRunning,
+			DependencyKnown:     apicontainerstatus.ContainerRestarting,
+			DependencyCondition: createCondition,
+			Resolved:            true,
+		},
+		{
 			TargetDesired:       apicontainerstatus.ContainerCreated,
 			DependencyKnown:     apicontainerstatus.ContainerCreated,
 			DependencyCondition: startCondition,
@@ -741,6 +778,12 @@ func TestContainerOrderingIsResolved(t *testing.T) {
 		},
 		{
 			TargetDesired:       apicontainerstatus.ContainerCreated,
+			DependencyKnown:     apicontainerstatus.ContainerRestarting,
+			DependencyCondition: startCondition,
+			Resolved:            true,
+		},
+		{
+			TargetDesired:       apicontainerstatus.ContainerCreated,
 			DependencyKnown:     apicontainerstatus.ContainerRunning,
 			DependencyCondition: startCondition,
 			Resolved:            true,
@@ -779,6 +822,20 @@ func TestContainerOrderingIsResolved(t *testing.T) {
 		},
 		{
 			TargetDesired:       apicontainerstatus.ContainerRunning,
+			DependencyKnown:     apicontainerstatus.ContainerRestarting,
+			DependencyCondition: successCondition,
+			ExitCode:            0,
+			Resolved:            false,
+		},
+		{
+			TargetDesired:       apicontainerstatus.ContainerRunning,
+			DependencyKnown:     apicontainerstatus.ContainerRestarting,
+			DependencyCondition: successCondition,
+			ExitCode:            1,
+			Resolved:            false,
+		},
+		{
+			TargetDesired:       apicontainerstatus.ContainerRunning,
 			DependencyKnown:     apicontainerstatus.ContainerStopped,
 			DependencyCondition: completeCondition,
 			ExitCode:            0,
@@ -790,6 +847,20 @@ func TestContainerOrderingIsResolved(t *testing.T) {
 			DependencyCondition: completeCondition,
 			ExitCode:            1,
 			Resolved:            true,
+		},
+		{
+			TargetDesired:       apicontainerstatus.ContainerRunning,
+			DependencyKnown:     apicontainerstatus.ContainerRestarting,
+			DependencyCondition: completeCondition,
+			ExitCode:            0,
+			Resolved:            false,
+		},
+		{
+			TargetDesired:       apicontainerstatus.ContainerRunning,
+			DependencyKnown:     apicontainerstatus.ContainerRestarting,
+			DependencyCondition: completeCondition,
+			ExitCode:            1,
+			Resolved:            false,
 		},
 		{
 			TargetDesired:       apicontainerstatus.ContainerRunning,
@@ -901,22 +972,22 @@ func TestVerifyShutdownOrder(t *testing.T) {
 	others := map[string]*apicontainer.Container{
 		"A": {
 			Name:              "A",
-			DependsOn:         dependsOn("B"),
+			DependsOnUnsafe:   dependsOn("B"),
 			KnownStatusUnsafe: apicontainerstatus.ContainerStopped,
 		},
 		"B": {
 			Name:              "B",
-			DependsOn:         dependsOn("C", "D"),
+			DependsOnUnsafe:   dependsOn("C", "D"),
 			KnownStatusUnsafe: apicontainerstatus.ContainerRunning,
 		},
 		"C": {
 			Name:              "C",
-			DependsOn:         dependsOn("E", "F"),
+			DependsOnUnsafe:   dependsOn("E", "F"),
 			KnownStatusUnsafe: apicontainerstatus.ContainerStopped,
 		},
 		"D": {
 			Name:              "D",
-			DependsOn:         dependsOn("E"),
+			DependsOnUnsafe:   dependsOn("E"),
 			KnownStatusUnsafe: apicontainerstatus.ContainerRunning,
 		},
 	}

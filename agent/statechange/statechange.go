@@ -27,10 +27,10 @@ const (
 	AttachmentEvent
 )
 
-// Event defines the type of state change event
+// event defines the type of state change event
 type EventType int32
 
-// Event is used to abstract away the two transition event types
+// event is used to abstract away the two transition event types
 // passed up through a single channel from the the engine
 type Event interface {
 
